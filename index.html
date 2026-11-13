@@ -58,6 +58,9 @@ tr.fill:hover td{background:var(--main-2)}
 .drop span{font-size:13px;color:var(--sub)}
 .drop input{position:absolute;inset:0;left:0;top:0;width:100%;height:100%;opacity:0;cursor:pointer;z-index:2}
 .scanbtn{font-size:17px;padding:16px;margin-bottom:10px}
+.modebar{display:flex;align-items:center;gap:6px;margin-bottom:10px;font-size:13px;color:var(--sub)}
+.modebar button{border:1px solid var(--line);background:#fff;border-radius:999px;padding:4px 14px;font-size:13px;font-weight:700;color:var(--sub);cursor:pointer}
+.modebar button.on{background:var(--main);border-color:var(--main);color:#fff}
 .filebtn{position:relative;overflow:hidden;text-align:center;font-size:14px;padding:11px 8px}
 .filebtn input{position:absolute;inset:0;left:0;top:0;width:100%;height:100%;opacity:0;cursor:pointer}
 #scan{position:fixed;inset:0;left:0;top:0;width:100%;height:100%;background:#000;z-index:50;color:#fff;display:flex;flex-direction:column}
@@ -172,6 +175,7 @@ footer{text-align:center;font-size:12px;color:var(--sub);margin-top:24px}
   <footer>服務提供：Wuchunchang(TW)</footer>
 </div>
 <div class="modal hidden" id="modal"><div class="sheet" id="sheet"></div></div>
+<input type="file" accept="image/*" capture="environment" data-sc="album" id="scNative" hidden>
 <div id="scan" class="hidden">
   <div class="scpane" id="sc_cam">
     <div class="scbar"><button class="scx" data-sc="close" aria-label="關閉">×</button>
@@ -466,10 +470,11 @@ function processOne(file){
 function stChip(st){ return st === 'pass' ? '<span class="st pass">通過・已用印</span>' : st === 'reject' ? '<span class="st reject">退件</span>' : '<span class="st wait">待技師審查</span>'; }
 function uploadCard(title, sub){
   return '<div class="card"><h3>' + title + '</h3>' + (sub || '') +
-    '<button class="btn block scanbtn" data-sc="open"' + (UI.busy ? ' disabled' : '') + '>📷 ' + (UI.busy ? '檢查中…' : '開啟掃描鏡頭') + '</button>' +
+    '<div class="modebar"><span>拍完框選：</span><button data-sc="mode" data-m="auto" class="' + (SC.mode === 'auto' ? 'on' : '') + '">自動</button><button data-sc="mode" data-m="manual" class="' + (SC.mode === 'manual' ? 'on' : '') + '">手動</button></div>' +
+    '<button class="btn block scanbtn" data-sc="native"' + (UI.busy ? ' disabled' : '') + '>📷 ' + (UI.busy ? '檢查中…' : '拍照（自動框選裁切）') + '</button>' +
     '<div class="row"><label class="btn ghost filebtn">🖼 相簿選一張<input type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" data-sc="album"></label>' +
     '<label class="btn ghost filebtn">多張原圖直傳<input type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" multiple data-act="files"' + (UI.busy ? ' disabled' : '') + '></label></div>' +
-    '<ul class="tips"><li>掃描鏡頭會自動框出標籤、拉正裁切，最省事</li><li>弧面瓶罐、繞到背面的字請分開拍</li><li>避開燈光反光；不要傳截圖</li></ul>' +
+    '<ul class="tips"><li>拍照後會自動框出標籤、拉正裁切；框得不準可拖四角微調</li><li>弧面瓶罐、繞到背面的字請分開拍</li><li>避開燈光反光；不要傳截圖</li></ul>' +
     resultsHtml() + '</div>';
 }
 function resultsHtml(){
@@ -1021,12 +1026,13 @@ function resumeCam(){
 function retake(){
   SC.out = null; SC.full = null; SC.edit = null; SC.quad = null; SC.stable = 0;
   if (SC.stream) { scShow('cam'); resumeCam(); }
-  else if (SC.fromNative) { closeScanner(); }
+  else if (SC.fromNative) { closeScanner(); scEl('scNative').click(); }
   else { closeScanner(); diagStart('重拍重開'); openScanner(); }
 }
 document.addEventListener('click', function(ev){
   var t = ev.target.closest('[data-sc]'); if (!t) return;
   var a = t.getAttribute('data-sc');
+  if (a === 'native') { scEl('scNative').click(); return; }
   if (a === 'open') {
     var inApp = /Line\/|FBAN|FBAV|FB_IAB|Instagram|MicroMessenger|; wv\)/i.test(navigator.userAgent);
     if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia) || !window.isSecureContext || inApp) { diagStart(inApp ? 'App內建瀏覽器' : '不支援網頁鏡頭'); scUnsupported(inApp); }
@@ -1039,7 +1045,7 @@ document.addEventListener('click', function(ev){
   }
   else if (a === 'relive') { closeScanner(); diagStart('重新開啟'); openScanner(); }
   else if (a === 'shutter') { if (SC.open && !SC.busy) capture(); }
-  else if (a === 'mode') { SC.mode = t.getAttribute('data-m'); try { localStorage.setItem('lv0_scanmode', SC.mode); } catch(e){} SC.stable = 0; scModeUI(); }
+  else if (a === 'mode') { SC.mode = t.getAttribute('data-m'); try { localStorage.setItem('lv0_scanmode', SC.mode); } catch(e){} SC.stable = 0; scModeUI(); render(); }
   else if (a === 'torch' && SC.track) { SC.torch = !SC.torch; SC.track.applyConstraints({advanced:[{torch:SC.torch}]}).catch(function(){}); t.classList.toggle('on', SC.torch); }
   else if (a === 'crop') finishCrop(SC.edit);
   else if (a === 'adjust') { openEditor(SC.lastQ || SC.edit || null); }

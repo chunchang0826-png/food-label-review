@@ -76,6 +76,9 @@ tr.fill:hover td{background:var(--main-2)}
 .scside{position:relative;overflow:hidden;width:64px;height:44px;border-radius:12px;background:rgba(255,255,255,.15);display:grid;place-items:center;font-size:13px;font-weight:700;cursor:pointer;color:#fff;border:0}
 .scside input{position:absolute;inset:0;left:0;top:0;width:100%;height:100%;opacity:0;cursor:pointer}
 .scside.on{background:#ffd23f;color:#000}
+#scNativeSide{width:76px;font-size:12px}
+.scfallback{position:relative;overflow:hidden;margin:0 16px 14px;width:auto;font-size:17px;padding:16px}
+.scfallback input{position:absolute;inset:0;left:0;top:0;width:100%;height:100%;opacity:0}
 #scShutter{width:72px;height:72px;border-radius:50%;border:5px solid #fff;background:rgba(255,255,255,.25);cursor:pointer}
 #scShutter:active{background:#fff}
 #scShutter:disabled{opacity:.3}
@@ -165,6 +168,7 @@ footer{text-align:center;font-size:12px;color:var(--sub);margin-top:24px}
   <footer>服務提供：Wuchunchang(TW)</footer>
 </div>
 <div class="modal hidden" id="modal"><div class="sheet" id="sheet"></div></div>
+<input type="file" accept="image/*" capture="environment" data-sc="album" id="scNative" hidden>
 <div id="scan" class="hidden">
   <div class="scpane" id="sc_cam">
     <div class="scbar"><button class="scx" data-sc="close" aria-label="關閉">×</button>
@@ -173,7 +177,8 @@ footer{text-align:center;font-size:12px;color:var(--sub);margin-top:24px}
     <div class="scstage"><video id="scVideo" playsinline muted autoplay></video><canvas id="scOverlay"></canvas></div>
     <div class="schint" id="scHint"></div>
     <div class="scbot"><label class="scside">相簿<input type="file" accept="image/*" data-sc="album"></label>
-      <button id="scShutter" data-sc="shutter" aria-label="拍照"></button><div class="scside" style="visibility:hidden"></div></div>
+      <button id="scShutter" data-sc="shutter" aria-label="拍照"></button><label class="scside" id="scNativeSide">手機相機<input type="file" accept="image/*" capture="environment" data-sc="album"></label></div>
+    <label class="btn block scfallback" id="scFallback" hidden>📷 改用手機相機拍照<input type="file" accept="image/*" capture="environment" data-sc="album"></label>
   </div>
   <div class="scpane" id="sc_edit" hidden>
     <div class="scbar"><button class="scx" data-sc="close" aria-label="關閉">×</button><div class="schint" id="scEditHint" style="flex:1"></div></div>
@@ -750,6 +755,9 @@ function openScanner(){
   scEl('scan').classList.remove('hidden'); scShow('cam'); scModeUI();
   scHint('載入掃描引擎中…（第一次約需數秒）');
   var cvp = loadCV();
+  scEl('scShutter').hidden = false; scEl('scFallback').hidden = true;
+  clearTimeout(SC.watch);
+  SC.watch = setTimeout(function(){ if (SC.open && !(SC.stream && scEl('scVideo').videoWidth)) camFail('鏡頭沒有回應'); }, 8000);
   if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) { camFail('這個瀏覽器不支援網頁相機'); return; }
   navigator.mediaDevices.getUserMedia({audio:false, video:{facingMode:{ideal:'environment'}, width:{ideal:3840}, height:{ideal:2160}}})
     .then(function(st){
@@ -761,18 +769,21 @@ function openScanner(){
       var v = scEl('scVideo'); v.srcObject = st; v.play().catch(function(){});
       cvp.then(function(c){ if (!SC.open) return; scHint(c ? (SC.mode === 'auto' ? '把整張標籤放進畫面，框線變綠並保持不動就會自動拍照' : '框好標籤後按下快門') : '掃描引擎載入失敗：仍可拍照，拍完請手動拖動四角'); startLoop(); });
     })
-    .catch(function(e){ camFail(e && e.name === 'NotAllowedError' ? '沒有相機權限：請在瀏覽器設定允許此網站使用相機' : '無法開啟相機'); });
+    .catch(function(e){ camFail(e && e.name === 'NotAllowedError' ? '這個瀏覽器沒有開放網頁鏡頭' : '網頁鏡頭無法開啟'); });
 }
 function camFail(msg){
-  scHint(msg + '。可改用下方「相簿」選照片。');
-  scEl('scShutter').disabled = true;
+  if (!SC.open || SC.stream && scEl('scVideo').videoWidth) return;
+  SC.liveFailed = true; clearTimeout(SC.watch);
+  scHint(msg + '：沒關係，改用手機相機拍，拍完一樣會自動框選裁切。');
+  scEl('scShutter').hidden = true; scEl('scFallback').hidden = false; scLoadCV();
 }
+function scLoadCV(){ loadCV(); }
 function closeScanner(){
-  SC.open = false; clearInterval(SC.loop); SC.loop = null;
+  SC.open = false; clearInterval(SC.loop); SC.loop = null; clearTimeout(SC.watch);
   if (SC.stream) SC.stream.getTracks().forEach(function(t){ t.stop(); });
   SC.stream = null; SC.track = null; SC.full = null; SC.edit = null;
   var v = scEl('scVideo'); if (v) v.srcObject = null;
-  scEl('scShutter').disabled = false;
+  scEl('scShutter').hidden = false; scEl('scFallback').hidden = true;
   scEl('scan').classList.add('hidden');
 }
 function scShow(which){ ['cam','edit','done'].forEach(function(w){ scEl('sc_' + w).hidden = w !== which; }); }
@@ -846,7 +857,8 @@ function scanFromFile(file){
   Promise.all([loadImage(file), loadCV()]).then(function(r){
     var o = r[0], c = document.createElement('canvas'); c.width = o.im.naturalWidth; c.height = o.im.naturalHeight;
     c.getContext('2d').drawImage(o.im, 0, 0); URL.revokeObjectURL(o.url);
-    SC.full = c; SC.srcName = file.name; openEditor(detectOnCanvas(c));
+    SC.full = c; SC.srcName = file.name; var q = detectOnCanvas(c);
+    if (SC.mode === 'auto' && q) finishCrop(q, 'file'); else openEditor(q);
   }).catch(function(){ scEl('scEditHint').textContent = '這個檔案無法讀取，請改用 JPG 或 PNG。'; });
 }
 /* 拖角編輯 */
@@ -898,10 +910,11 @@ function editPointer(ev, phase){
   } else if (phase === 'up') { SC.drag = null; }
   drawEditor();
 }
-function finishCrop(q){
+function finishCrop(q, src){
   q = orderQuad(q); SC.lastQ = q;
   var sz = quadSize(q), lim = store.cfg.cropMinLong, long = Math.max(sz.w, sz.h);
   if (long < lim) {
+    if (src === 'file') { openEditor(q); scEl('scEditHint').textContent = '標籤在照片裡太小（裁切後約 ' + long + ' 像素，需 ' + lim + '）：請重拍並靠近一點'; return; }
     if (SC.mode === 'auto' && scEl('sc_edit').hidden) { if (SC.prevLong) SC.needPreview = SC.prevLong * lim / long * 1.03; SC.stable = 0; scShow('cam'); scHint('標籤太小（約 ' + long + ' 像素，需 ' + lim + '），請再靠近一點'); return; }
     scEl('scEditHint').textContent = '裁切後只有約 ' + long + ' 像素，低於 ' + lim + '：字會太小，請重拍並靠近一點'; return;
   }
@@ -917,12 +930,16 @@ function submitScan(){
 }
 function retake(){
   SC.out = null; SC.full = null; SC.edit = null; SC.quad = null; SC.stable = 0;
-  if (SC.stream) { scShow('cam'); startLoop(); } else closeScanner();
+  if (SC.stream) { scShow('cam'); startLoop(); } else { closeScanner(); scEl('scNative').click(); }
 }
 document.addEventListener('click', function(ev){
   var t = ev.target.closest('[data-sc]'); if (!t) return;
   var a = t.getAttribute('data-sc');
-  if (a === 'open') openScanner();
+  if (a === 'open') {
+    var inApp = /Line\/|FBAN|FBAV|FB_IAB|Instagram|MicroMessenger|; wv\)/i.test(navigator.userAgent);
+    if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia) || !window.isSecureContext || inApp || SC.liveFailed) { scEl('scNative').click(); }
+    else openScanner();
+  }
   else if (a === 'close') closeScanner();
   else if (a === 'shutter') { if (SC.open && !SC.busy) capture(); }
   else if (a === 'mode') { SC.mode = t.getAttribute('data-m'); try { localStorage.setItem('lv0_scanmode', SC.mode); } catch(e){} SC.stable = 0; scModeUI(); }

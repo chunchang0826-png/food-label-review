@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI 食品標籤初審 V.0</title>
+<style>
+:root{
+  --bg:#f4f7f5; --card:#ffffff; --ink:#1d2a26; --sub:#5b6b66; --line:#e2e9e6;
+  --main:#0f7a5c; --main-2:#e3f3ec; --amber:#b87400; --amber-2:#fff4dc;
+  --red:#c8382c; --red-2:#fdeceb; --blue:#2f6fb5; --blue-2:#e8f1fb; --r:16px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font-family:-apple-system,"PingFang TC","Noto Sans TC","Microsoft JhengHei",sans-serif;font-size:16px;line-height:1.65;-webkit-text-size-adjust:100%}
+.wrap{max-width:560px;margin:0 auto;padding:0 14px 48px}
+button,input,textarea{font:inherit}
+[data-act]{touch-action:manipulation}
+/* 頂部 */
+.top{position:sticky;top:0;z-index:5;background:rgba(244,247,245,.96);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);display:flex;align-items:center;gap:8px;padding:12px 0 10px;border-bottom:1px solid var(--line)}
+.brand{font-weight:800;font-size:16px;color:var(--main);flex:1;white-space:nowrap}
+.brand small{font-size:11px;color:var(--sub);font-weight:700;margin-left:4px}
+.me{font-size:12px;font-weight:700;background:#fff;border:1px solid var(--line);border-radius:999px;padding:4px 10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:46vw}
+.btn{border:0;border-radius:12px;padding:12px 16px;font-weight:700;cursor:pointer;background:var(--main);color:#fff}
+.btn.sm{padding:6px 12px;font-size:13px;border-radius:10px}
+.btn.ghost{background:#fff;color:var(--main);border:1px solid var(--line)}
+.btn.red{background:var(--red)}
+.btn.block{display:block;width:100%}
+.btn:disabled{opacity:.5;cursor:default}
+.banner{font-size:12px;color:var(--sub);text-align:center;padding:6px 0 0}
+.banner.warn{color:var(--amber)}
+/* 區塊 */
+h2{font-size:20px;line-height:1.4;margin:18px 0 10px}
+h3{font-size:16px;margin-bottom:8px}
+.card{background:var(--card);border-radius:var(--r);padding:16px;margin-bottom:12px;box-shadow:0 1px 3px rgba(20,40,35,.06)}
+.muted{color:var(--sub);font-size:13px}
+.hero{background:linear-gradient(150deg,#0f7a5c 0%,#13906c 55%,#1aa77d 100%);color:#fff;border-radius:0 0 24px 24px;margin:0 -14px 6px;padding:26px 20px 22px}
+.hero h1{font-size:24px;line-height:1.35;font-weight:800}
+.hero p{font-size:14px;opacity:.92;margin-top:8px}
+/* 登入 */
+.roles{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.role{border:1px solid var(--line);border-radius:14px;padding:14px;background:#fff;text-align:left;cursor:pointer}
+.role b{display:block;font-size:15px}
+.role span{font-size:12px;color:var(--sub);line-height:1.5;display:block;margin-top:2px}
+.role.on{border-color:var(--main);box-shadow:0 0 0 2px var(--main-2)}
+.field{display:block;margin-bottom:10px}
+.field span{display:block;font-size:13px;color:var(--sub);margin-bottom:4px}
+.field input,.field textarea{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:#fff}
+.err{color:var(--red);font-size:13px;margin:4px 0 8px;min-height:1em}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{padding:8px 6px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{font-size:12px;color:var(--sub)}
+tr.fill{cursor:pointer}
+tr.fill:hover td{background:var(--main-2)}
+/* 上傳 */
+.drop{position:relative;overflow:hidden;display:block;border:2px dashed #b9d8cc;border-radius:16px;background:var(--main-2);text-align:center;padding:22px 12px;cursor:pointer}
+.drop b{display:block;color:var(--main);font-size:17px}
+.drop span{font-size:13px;color:var(--sub)}
+.drop input{position:absolute;inset:0;left:0;top:0;width:100%;height:100%;opacity:0;cursor:pointer;z-index:2}
+.tips{font-size:13px;color:var(--sub);margin-top:10px;padding-left:18px}
+.quota{display:inline-block;font-size:13px;font-weight:700;background:var(--amber-2);color:var(--amber);border-radius:999px;padding:3px 12px;margin-bottom:10px}
+/* 結果 */
+.res{border:1px solid var(--line);border-radius:14px;overflow:hidden;margin-top:12px}
+.res-h{display:flex;gap:10px;align-items:center;padding:10px 12px}
+.res-h img{width:56px;height:56px;object-fit:cover;border-radius:8px;background:#eee;flex:0 0 auto}
+.res-h .t{flex:1;min-width:0}
+.res-h .t b{display:block;font-size:15px}
+.res-h .t span{font-size:12px;color:var(--sub);word-break:break-all}
+.res.ok .res-h{background:var(--main-2)}
+.res.ng .res-h{background:var(--red-2)}
+.chk{display:flex;gap:8px;padding:8px 12px;border-top:1px solid var(--line);font-size:13px;line-height:1.5}
+.chk i{font-style:normal;flex:0 0 auto}
+.chk em{font-style:normal;color:var(--sub);margin-left:auto;padding-left:8px;text-align:right;max-width:45%}
+/* 案件列表 */
+.case{display:flex;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}
+.case:last-child{border-bottom:0}
+.case img{width:52px;height:52px;object-fit:cover;border-radius:8px;background:#eee;flex:0 0 auto}
+.case .t{flex:1;min-width:0}
+.case .t b{display:block;font-size:14px}
+.case .t span{display:block;font-size:12px;color:var(--sub);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.case.click{cursor:pointer}
+.st{font-size:12px;font-weight:800;padding:2px 9px;border-radius:999px;white-space:nowrap}
+.st.wait{background:var(--amber-2);color:var(--amber)}
+.st.pass{background:var(--main-2);color:var(--main)}
+.st.reject{background:var(--red-2);color:var(--red)}
+.tag,.case .t span.tag{display:inline-block;width:auto;font-size:11px;font-weight:700;padding:1px 7px;border-radius:6px;background:var(--blue-2);color:var(--blue);margin-left:4px;vertical-align:1px}
+.note{font-size:12px;color:var(--sub);background:var(--bg);border-radius:8px;padding:6px 8px;margin-top:4px;white-space:normal}
+.empty{text-align:center;color:var(--sub);font-size:14px;padding:18px 0}
+.tabs{display:flex;background:#e6ece9;border-radius:12px;padding:4px;margin-bottom:12px}
+.tabs button{flex:1;border:0;background:transparent;font-size:14px;font-weight:700;color:var(--sub);padding:9px 4px;border-radius:9px;cursor:pointer}
+.tabs button.on{background:#fff;color:var(--main);box-shadow:0 1px 3px rgba(0,0,0,.08)}
+/* 範例報告 */
+.report{border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.rp-h{background:#1d2a26;color:#fff;padding:10px 12px;font-size:14px;display:flex;justify-content:space-between}
+.rp-h small{opacity:.7;font-size:11px}
+.rp-row{display:flex;gap:8px;padding:10px 12px;border-top:1px solid var(--line);font-size:13px;line-height:1.55}
+.lv{flex:0 0 auto;font-size:11px;font-weight:800;padding:2px 7px;border-radius:6px;height:fit-content;white-space:nowrap}
+.lv.r{background:var(--red-2);color:var(--red)}
+.lv.a{background:var(--amber-2);color:var(--amber)}
+.lv.b{background:var(--blue-2);color:var(--blue)}
+/* 開發者 */
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.stat{background:var(--bg);border-radius:12px;padding:10px;text-align:center}
+.stat b{display:block;font-size:22px;line-height:1.2}
+.stat span{font-size:12px;color:var(--sub)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 10px}
+.yes{color:var(--main);font-weight:800}
+.no{color:#b8c4c0}
+.log{font-size:12px;padding:6px 0;border-bottom:1px dashed var(--line);display:flex;gap:8px}
+.log time{color:var(--sub);white-space:nowrap}
+.log span{word-break:break-all}
+/* 彈窗 */
+.modal{position:fixed;inset:0;background:rgba(20,30,27,.5);z-index:20;display:flex;align-items:flex-end;justify-content:center}
+.modal.hidden{display:none}
+.sheet{background:#fff;width:100%;max-width:560px;max-height:92vh;overflow:auto;border-radius:20px 20px 0 0;padding:16px 16px 24px}
+.sheet .x{float:right;border:0;background:var(--bg);border-radius:50%;width:32px;height:32px;font-size:18px;cursor:pointer}
+.big{width:100%;border-radius:12px;background:#eee;margin:10px 0;display:block}
+.stamp{display:inline-block;border:2px solid var(--red);color:var(--red);border-radius:8px;padding:4px 10px;font-weight:800;font-size:13px;transform:rotate(-4deg);margin-top:6px}
+.row{display:flex;gap:10px;margin-top:10px}
+.row>*{flex:1}
+footer{text-align:center;font-size:12px;color:var(--sub);margin-top:24px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">標籤初審<small>V.0 驗證版</small></div>
+    <div class="me" id="me">尚未選擇身分</div>
+    <button class="btn sm ghost" id="switchBtn" data-act="logout" hidden>切換身分</button>
+  </header>
+  <div class="banner" id="banner">連線中…</div>
+  <main id="app"></main>
+  <footer>服務提供：Wuchunchang(TW)</footer>
+</div>
+<div class="modal hidden" id="modal"><div class="sheet" id="sheet"></div></div>
+
+<script>
+/* ===== 基本設定 ===== */
+var DEFAULT_CFG = {minLong:2000, blurMin:100, darkMean:60, overRatio:0.35, guestDaily:3, maxMB:20};
+var ACCOUNTS = {
+  a01:{pw:'1234', role:'user', name:'王小姐', company:'客戶A食品'},
+  b01:{pw:'1234', role:'user', name:'李先生', company:'客戶B食品'},
+  t01:{pw:'1234', role:'tech', name:'吳技師'},
+  d01:{pw:'1234', role:'dev',  name:'開發者'}
+};
+var ROLE_LABEL = {guest:'路人', user:'用戶', tech:'食品技師', dev:'開發者'};
+/* 權限表：每一個動作，哪些身分可以做 */
+var PERM = {
+  '觀看介紹與範例報告':      ['guest','user','tech','dev'],
+  '免費試用（每日限次）':    ['guest'],
+  '正式送審（不限次）':      ['user'],
+  '查看自己的案件':          ['guest','user'],
+  '查看同公司案件':          ['user'],
+  '審查佇列、判定、用印':    ['tech'],
+  '查看標籤原圖':            ['guest','user','tech'],
+  '門檻設定與測試台':        ['dev'],
+  '系統紀錄與統計':          ['dev']
+};
+function can(action){ return !!(S && PERM[action] && PERM[action].indexOf(S.role) >= 0); }
+
+/* ===== 小工具 ===== */
+function $(id){ return document.getElementById(id); }
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+function pad(n){ return (n < 10 ? '0' : '') + n; }
+function ymd(d){ d = d || new Date(); return d.getFullYear() + pad(d.getMonth()+1) + pad(d.getDate()); }
+function fmt(ts){ var d = new Date(ts); return (d.getMonth()+1) + '/' + d.getDate() + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()); }
+function rid(n){ var s = ''; var c = 'abcdefghjkmnpqrstuvwxyz23456789'; for (var i = 0; i < n; i++) s += c[Math.floor(Math.random()*c.length)]; return s; }
+function lsGet(k){ try { return localStorage.getItem(k); } catch(e){ return null; } }
+function lsSet(k, v){ try { localStorage.setItem(k, v); } catch(e){} }
+function ssGet(k){ try { return sessionStorage.getItem(k); } catch(e){ return null; } }
+function ssSet(k, v){ try { if (v == null) sessionStorage.removeItem(k); else sessionStorage.setItem(k, v); } catch(e){} }
+
+var DEVICE = lsGet('lv0_device');
+if (!DEVICE) { DEVICE = 'd' + Date.now().toString(36) + rid(4); lsSet('lv0_device', DEVICE); }
+
+/* ===== 目前身分 ===== */
+var S = null;
+try { S = JSON.parse(ssGet('lv0_session') || 'null'); } catch(e){ S = null; }
+function setSession(s){ S = s; ssSet('lv0_session', s ? JSON.stringify(s) : null); UI = {tab:'wait', results:[], bench:null, busy:false}; refreshQuota(); render(); }
+
+/* ===== 資料層（雲端；連不上時改單機） ===== */
+var MODE = 'connecting', DB = null, ASSETS = null;
+var store = {cases:[], cfg:Object.assign({}, DEFAULT_CFG), logs:[], quota:0, loaded:false};
+
+function loadLocal(){
+  try { var o = JSON.parse(lsGet('lv0_local') || '{}'); store.cases = o.cases || []; store.logs = o.logs || []; store.cfg = Object.assign({}, DEFAULT_CFG, o.cfg || {}); } catch(e){}
+  store.loaded = true;
+}
+function saveLocal(){ lsSet('lv0_local', JSON.stringify({cases:store.cases.slice(0,200), logs:store.logs.slice(0,200), cfg:store.cfg})); }
+
+function setBanner(t, warn){ var b = $('banner'); b.textContent = t; b.className = 'banner' + (warn ? ' warn' : ''); }
+
+function initStore(){
+  var done = false;
+  var giveUp = setTimeout(function(){ if (!done){ done = true; goLocal(); } }, 12000);
+  function goLocal(){
+    MODE = 'local'; loadLocal();
+    setBanner('目前為單機模式：資料只存在這台裝置的瀏覽器，換裝置看不到。', true);
+    refreshQuota(); render();
+  }
+  if (!(window.claude && typeof claude.use === 'function')) { clearTimeout(giveUp); done = true; goLocal(); return; }
+  Promise.all([
+    claude.use('db').catch(function(){ return null; }),
+    claude.use('assets').catch(function(){ return null; })
+  ]).then(function(r){
+    if (done) return;
+    done = true; clearTimeout(giveUp);
+    if (!r[0]) { goLocal(); return; }
+    DB = r[0]; ASSETS = r[1]; MODE = 'cloud';
+    setBanner('雲端同步中（手機上傳，電腦打開同一個連結即可看到）');
+    var slow = setTimeout(function(){ if (!store.loaded) setBanner('雲端資料讀取較慢，可能暫時連不上，請稍候。', true); }, 10000);
+    DB.collection('cases').orderBy('ts','desc').limit(500).onSnapshot(function(s){
+      store.cases = s.docs.map(function(d){ var o = Object.assign({}, d.data()); o.id = d.id; return o; });
+      if (!s.metadata.fromCache) { clearTimeout(slow); }
+      store.loaded = true; render();
+    }, function(e){ setBanner('案件資料讀取失敗（' + e.code + '），請重新整理頁面。', true); });
+    DB.doc('config/main').onSnapshot(function(s){
+      store.cfg = Object.assign({}, DEFAULT_CFG, s.exists ? s.data() : {}); render();
+    }, function(){});
+    DB.collection('logs').orderBy('ts','desc').limit(80).onSnapshot(function(s){
+      store.logs = s.docs.map(function(d){ return d.data(); }); render();
+    }, function(){});
+    refreshQuota();
+  });
+}
+
+function saveCase(c){
+  if (MODE === 'cloud') return DB.collection('cases').doc(c.id).set(c);
+  store.cases.unshift(c); saveLocal(); render(); return Promise.resolve();
+}
+function patchCase(id, p){
+  if (MODE === 'cloud') return DB.doc('cases/' + id).update(p);
+  store.cases.forEach(function(c){ if (c.id === id) Object.assign(c, p); }); saveLocal(); render(); return Promise.resolve();
+}
+function saveCfg(cfg){
+  if (MODE === 'cloud') return DB.doc('config/main').set(cfg);
+  store.cfg = cfg; saveLocal(); render(); return Promise.resolve();
+}
+function addLog(type, msg){
+  var e = {ts:Date.now(), role:S ? S.role : '-', who:S ? (S.company || S.name || ROLE_LABEL[S.role]) : '-', type:type, msg:msg};
+  if (MODE === 'cloud') return DB.collection('logs').add(e).catch(function(){});
+  store.logs.unshift(e); saveLocal(); return Promise.resolve();
+}
+function uploadOriginal(c, file){
+  if (!(ASSETS && file.size <= 20*1048576)) return Promise.resolve();
+  return ASSETS.upload(file).then(function(a){ c.assetId = a.id; c.url = a.url; }).catch(function(){ c.assetNote = '原圖上傳失敗，僅保留縮圖'; });
+}
+function resolveImg(c){ return Promise.resolve(c.url || (c.assetId ? '/_blob/' + c.assetId : c.thumb)); }
+function getStats(){
+  var cs = store.cases, today = ymd(), cnt = function(f){ return cs.filter(f).length; };
+  return {total:cs.length, wait:cnt(function(c){ return c.status === 'wait'; }), pass:cnt(function(c){ return c.status === 'pass'; }),
+    reject:cnt(function(c){ return c.status === 'reject'; }), trial:cnt(function(c){ return c.trial; }),
+    blocked:store.logs.filter(function(l){ return l.type === '照片擋下' && ymd(new Date(l.ts)) === today; }).length};
+}
+function doLogin(k, p){
+  var ac = ACCOUNTS[k];
+  if (!ac || ac.pw !== p) return Promise.reject(new Error('帳號或密碼不正確'));
+  return Promise.resolve({role:ac.role, acct:k, name:ac.name, company:ac.company || ''});
+}
+function doLogout(){ return Promise.resolve(); }
+function quotaKey(){ return 'g_' + DEVICE + '_' + ymd(); }
+function refreshQuota(){
+  if (!S || S.role !== 'guest') return;
+  if (MODE === 'cloud') {
+    DB.doc('quota/' + quotaKey()).get().then(function(s){ store.quota = s.exists ? (s.data().count || 0) : 0; render(); }).catch(function(){});
+  } else if (MODE === 'local') {
+    store.quota = parseInt(lsGet('lv0_q_' + quotaKey()) || '0', 10); render();
+  }
+}
+function useQuota(){
+  store.quota += 1;
+  if (MODE === 'cloud') return DB.doc('quota/' + quotaKey()).set({count:store.quota, day:ymd(), device:DEVICE});
+  lsSet('lv0_q_' + quotaKey(), String(store.quota)); return Promise.resolve();
+}
+
+/* ===== 照片品質檢查 ===== */
+function decode(file){
+  return new Promise(function(res, rej){
+    var u = URL.createObjectURL(file); var im = new Image();
+    im.onload = function(){ res({im:im, url:u, file:file}); };
+    im.onerror = function(){ URL.revokeObjectURL(u); rej(new Error('decode')); };
+    im.src = u;
+  });
+}
+/* HEIC（iPhone 高效率格式）：瀏覽器讀不了時，才臨時載入轉檔工具轉成 JPG */
+var heicLib = null;
+function isHeic(f){ return /hei[cf]/i.test(f.type || '') || /\.hei[cf]$/i.test(f.name || ''); }
+function loadHeicLib(){
+  if (heicLib) return heicLib;
+  heicLib = new Promise(function(res, rej){
+    var sc = document.createElement('script');
+    sc.src = 'https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js';
+    sc.onload = function(){ window.heic2any ? res(window.heic2any) : rej(new Error('lib')); };
+    sc.onerror = function(){ heicLib = null; rej(new Error('lib')); };
+    document.head.appendChild(sc);
+  });
+  return heicLib;
+}
+function loadImage(file){
+  return decode(file).catch(function(e){
+    if (!isHeic(file)) throw e;
+    return loadHeicLib().then(function(h){ return h({blob:file, toType:'image/jpeg', quality:0.92}); }).then(function(b){
+      if (Array.isArray(b)) b = b[0];
+      var nf = new File([b], (file.name || 'photo').replace(/\.hei[cf]$/i, '') + '.jpg', {type:'image/jpeg'});
+      return decode(nf).then(function(o){ o.converted = true; return o; });
+    });
+  });
+}
+/* 清晰度：拉普拉斯運算子（找邊緣），切成 8×8 格，取最銳利的 1/4 格平均變異數；
+   只看文字所在的區域，大片空白背景不會把分數拉低 */
+function sharpness(g, w, h){
+  var T = 8, tw = Math.floor(w / T), th = Math.floor(h / T), vars = [];
+  if (tw < 3 || th < 3) return 0;
+  for (var ty = 0; ty < T; ty++) for (var tx = 0; tx < T; tx++) {
+    var x0 = Math.max(1, tx*tw), x1 = Math.min(w-1, (tx+1)*tw), y0 = Math.max(1, ty*th), y1 = Math.min(h-1, (ty+1)*th);
+    var s = 0, ss = 0, n = 0;
+    for (var y = y0; y < y1; y++) { var r = y*w; for (var x = x0; x < x1; x++) {
+      var i = r + x; var L = 4*g[i] - g[i-1] - g[i+1] - g[i-w] - g[i+w];
+      s += L; ss += L*L; n++;
+    } }
+    if (n) { var m = s/n; vars.push(ss/n - m*m); }
+  }
+  vars.sort(function(a, b){ return b - a; });
+  var k = Math.max(1, Math.round(vars.length / 4)), t = 0;
+  for (var j = 0; j < k; j++) t += vars[j];
+  return t / k;
+}
+function analyze(im){
+  var W = im.naturalWidth, H = im.naturalHeight, long = Math.max(W, H);
+  var sc = Math.min(1, 1600 / long), w = Math.max(1, Math.round(W*sc)), h = Math.max(1, Math.round(H*sc));
+  var cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+  var ctx = cv.getContext('2d', {willReadFrequently:true});
+  ctx.imageSmoothingQuality = 'high'; ctx.drawImage(im, 0, 0, w, h);
+  var d = ctx.getImageData(0, 0, w, h).data, g = new Float32Array(w*h), sum = 0, over = 0;
+  for (var i = 0, j = 0; i < g.length; i++, j += 4) { var v = 0.299*d[j] + 0.587*d[j+1] + 0.114*d[j+2]; g[i] = v; sum += v; if (v >= 253) over++; }
+  return {W:W, H:H, long:long, sharp:Math.round(sharpness(g, w, h)), mean:Math.round(sum / g.length), overRatio:over / g.length};
+}
+function judge(m, file, cfg, converted){
+  var mb = file.size / 1048576;
+  var list = [
+    {name:'檔案大小', ok: mb <= cfg.maxMB, val: mb.toFixed(1) + ' MB', bad:'檔案超過 ' + cfg.maxMB + ' MB，請改傳較小的檔案。'},
+    {name:'解析度', ok: m.long >= cfg.minLong, val:'長邊 ' + m.long + ' px', bad:'照片太小（長邊 ' + m.long + ' 像素，需至少 ' + cfg.minLong + '）。請靠近一點拍，或改傳原圖，不要傳截圖。'},
+    {name:'清晰度', ok: m.sharp >= cfg.blurMin, val:'分數 ' + m.sharp + '（門檻 ' + cfg.blurMin + '）', bad:'照片模糊。請先點一下螢幕上的標籤文字對焦，手拿穩再按快門。'},
+    {name:'亮度', ok: m.mean >= cfg.darkMean, val:'平均 ' + m.mean + '（門檻 ' + cfg.darkMean + '）', bad:'光線不足，請到明亮處重拍。'},
+    {name:'反光／過曝', ok: converted || m.overRatio <= cfg.overRatio, val: converted ? 'HEIC 轉檔照片不判定，由技師目視' : (m.overRatio*100).toFixed(1) + '%（上限 ' + Math.round(cfg.overRatio*100) + '%）', bad:'反光或過曝面積太大，請換個角度避開燈光。'}
+  ];
+  return {pass: list.every(function(c){ return c.ok; }), list:list};
+}
+function thumb(im){
+  var long = Math.max(im.naturalWidth, im.naturalHeight), sc = Math.min(1, 640 / long);
+  var cv = document.createElement('canvas'); cv.width = Math.round(im.naturalWidth*sc); cv.height = Math.round(im.naturalHeight*sc);
+  cv.getContext('2d').drawImage(im, 0, 0, cv.width, cv.height);
+  return cv.toDataURL('image/jpeg', 0.72);
+}
+
+/* ===== 送審流程（逐張即時回覆） ===== */
+var UI = {tab:'wait', results:[], bench:null, busy:false};
+function handleFiles(files){
+  if (!files || !files.length || UI.busy) return;
+  UI.busy = true; UI.results = [];
+  var arr = Array.prototype.slice.call(files), i = 0;
+  render();
+  function next(){
+    if (i >= arr.length) { UI.busy = false; render(); return; }
+    var f = arr[i++];
+    processOne(f).then(function(r){ UI.results.push(r); render(); next(); });
+  }
+  next();
+}
+function processOne(file){
+  var cfg = store.cfg;
+  if (S.role === 'guest' && store.quota >= cfg.guestDaily) {
+    return Promise.resolve({file:file.name, pass:false, quotaOut:true, list:[{name:'今日試用次數', ok:false, val:store.quota + '/' + cfg.guestDaily, bad:'今天的免費試用已用完，明天再來，或聯繫我們成為正式用戶。'}]});
+  }
+  return loadImage(file).then(function(o){
+    file = o.file;
+    var m = analyze(o.im), j = judge(m, file, cfg, o.converted), r = {file:file.name, pass:j.pass, list:j.list, thumb:thumb(o.im)};
+    URL.revokeObjectURL(o.url);
+    if (!j.pass) {
+      addLog('照片擋下', '「' + file.name + '」未通過：' + j.list.filter(function(c){ return !c.ok; }).map(function(c){ return c.name; }).join('、'));
+      return r;
+    }
+    var id = 'L' + ymd() + '-' + rid(4).toUpperCase();
+    var c = {id:id, ts:Date.now(), status:'wait', fileName:file.name, thumb:r.thumb,
+      ownerRole:S.role, owner:S.role === 'guest' ? DEVICE : S.acct, company:S.role === 'guest' ? '路人試用' : S.company,
+      submitter:S.role === 'guest' ? '路人' : S.name, trial:S.role === 'guest',
+      metrics:{long:m.long, W:m.W, H:m.H, sharp:m.sharp, mean:m.mean, overRatio:Math.round(m.overRatio*1000)/1000}};
+    return uploadOriginal(c, file).then(function(){ return saveCase(c); }).then(function(){
+      r.caseId = id;
+      addLog('收件', '案號 ' + id + '（' + c.company + '）進入待審');
+      if (S.role === 'guest') return useQuota();
+    }).then(function(){ return r; }).catch(function(e){
+      r.pass = false; r.list.push({name:'存檔', ok:false, val:'', bad:'照片合格，但存檔失敗（' + ((e && (e.code || e.message)) || '未知原因') + '），請稍後再試。'}); return r;
+    });
+  }).catch(function(){
+    addLog('照片擋下', '「' + file.name + '」格式無法讀取');
+    return {file:file.name, pass:false, list:[{name:'檔案格式', ok:false, val:file.type || '未知', bad:'這個檔案無法讀取。請改用 JPG 或 PNG（iPhone：設定 → 相機 → 格式 → 選「最相容」）。'}]};
+  });
+}
+
+/* ===== 畫面 ===== */
+function stChip(st){ return st === 'pass' ? '<span class="st pass">通過・已用印</span>' : st === 'reject' ? '<span class="st reject">退件</span>' : '<span class="st wait">待技師審查</span>'; }
+function uploadCard(title, sub){
+  return '<div class="card"><h3>' + title + '</h3>' + (sub || '') +
+    '<label class="drop"><input type="file" accept="image/*" multiple data-act="files"' + (UI.busy ? ' disabled' : '') + '>' +
+    '<b>' + (UI.busy ? '檢查中…' : '📷 拍照或選擇標籤照片') + '</b><span>一次可選多張，每張幾秒內回覆結果</span></label>' +
+    '<ul class="tips"><li>拍標籤正面，整張標籤入鏡</li><li>先點螢幕上的文字對焦再拍</li><li>避開燈光反光；不要傳截圖</li></ul>' +
+    resultsHtml() + '</div>';
+}
+function resultsHtml(){
+  return UI.results.map(function(r){
+    var head = r.pass ? '✅ 合格，已收件' : (r.quotaOut ? '⛔ 今日試用已用完' : '❌ 不合格，請重拍');
+    var sub = r.pass ? '案號 ' + esc(r.caseId) + '，等待技師審查' : esc(r.file);
+    var showNum = S.role !== 'guest' && S.role !== 'user';
+    return '<div class="res ' + (r.pass ? 'ok' : 'ng') + '"><div class="res-h">' + (r.thumb ? '<img src="' + r.thumb + '" alt="">' : '') +
+      '<div class="t"><b>' + head + '</b><span>' + sub + '</span></div></div>' +
+      r.list.filter(function(c){ return !c.ok; }).map(function(c){
+        return '<div class="chk"><i>❌</i><span>' + esc(c.name) + '：' + esc(c.bad) + '</span><em>' + esc(c.val) + '</em></div>';
+      }).join('') + (function(){ var okN = r.list.filter(function(c){ return c.ok; }).length;
+        return okN ? '<div class="chk"><i>✅</i><span>' + (r.pass ? '照片品質 ' + okN + ' 項全部通過' : '其餘 ' + okN + ' 項通過') + '</span>' + (showNum ? '<em>' + esc(r.list.filter(function(c){ return c.ok; }).map(function(c){ return c.val; }).join('、')) + '</em>' : '') + '</div>' : ''; })() + '</div>';
+  }).join('');
+}
+function caseRow(c, opts){
+  opts = opts || {};
+  var img = opts.noImg ? '' : '<img src="' + c.thumb + '" alt="">';
+  var meta = (opts.showCo ? esc(c.company) + '｜' : '') + esc(c.id) + '｜' + fmt(c.ts);
+  var rv = c.review ? '<div class="note">' + (c.status === 'pass' ? '技師意見：' : '退件原因：') + esc(c.review.note || '（無）') + '</div>' : '';
+  return '<div class="case' + (opts.click ? ' click' : '') + '"' + (opts.click ? ' onclick="" data-act="open" data-id="' + esc(c.id) + '"' : '') + '>' + img +
+    '<div class="t"><b>' + esc(c.fileName) + (c.trial ? '<span class="tag">試用</span>' : '') + '</b><span>' + meta + '</span>' + rv + '</div>' + stChip(c.status) + '</div>';
+}
+var SAMPLE = '<div class="report"><div class="rp-h"><span>📋 初判報告｜滷肉燥調理包</span><small>示意</small></div>' +
+  '<div class="rp-row"><span class="lv r">❌ 必須修正</span><span>成分含醬油，過敏原資訊漏列「大豆」。</span></div>' +
+  '<div class="rp-row"><span class="lv r">❌ 必須修正</span><span>正面淨重「500 公克」，背面寫「450 公克」，前後不一致。</span></div>' +
+  '<div class="rp-row"><span class="lv a">⚠ 建議修正</span><span>保存方式字體偏小，建議放大並確認符合最小字高。</span></div>' +
+  '<div class="rp-row"><span class="lv b">ℹ 需人工確認</span><span>營養標示數值需以檢驗報告或計算書核對，照片無法驗證。</span></div></div>' +
+  '<p class="muted" style="margin-top:8px">※ 以上為格式示意，非真實產品。AI 初審於 V.1 開放，V.0 由技師直接判定。</p>';
+
+function viewLogin(){
+  var rows = Object.keys(ACCOUNTS).map(function(k){ var a = ACCOUNTS[k];
+    return '<tr class="fill" onclick="" data-act="fill" data-acct="' + k + '"><td>' + ROLE_LABEL[a.role] + '</td><td>' + esc(a.company || a.name) + '</td><td><b>' + k + '</b></td><td>' + a.pw + '</td></tr>'; }).join('');
+  return '<section class="hero"><h1>拍照上傳，<br>AI 先幫你把錯抓出來</h1><p>V.0 驗證版：驗證「模糊照片會被擋、清楚的才收件」，以及四種身分各自看到的畫面與權限。</p></section>' +
+    '<h2>選擇身分</h2><div class="card"><div class="roles">' +
+    '<button class="role" data-act="guest"><b>路人</b><span>免登入，觀摩說明與範例，每天可免費試用 ' + store.cfg.guestDaily + ' 次</span></button>' +
+    '<div class="role" style="cursor:default"><b>用戶／技師／開發者</b><span>用下方帳號登入</span></div></div></div>' +
+    '<div class="card"><h3>帳號登入</h3><label class="field"><span>帳號</span><input id="acct" autocomplete="off" autocapitalize="off"></label>' +
+    '<label class="field"><span>密碼</span><input id="pw" type="password"></label><div class="err" id="loginErr"></div>' +
+    '<button class="btn block" data-act="login">登入</button></div>' +
+    '<div class="card"><h3>測試帳號（點一下自動帶入）</h3><table><tr><th>身分</th><th>名稱</th><th>帳號</th><th>密碼</th></tr>' + rows + '</table>' +
+    '<p class="muted" style="margin-top:8px">客戶A、客戶B 用來驗證「不同公司互相看不到案件」。</p></div>';
+}
+function viewGuest(){
+  var left = Math.max(0, store.cfg.guestDaily - store.quota);
+  var mine = store.cases.filter(function(c){ return c.trial && c.owner === DEVICE; });
+  return '<h2>歡迎觀摩</h2><div class="card"><h3>服務流程</h3><p class="muted">手機拍照上傳 → 系統先檢查照片品質 → AI 逐項初審（V.1 開放）→ 食品技師終審、用印。審核人員只看被標出來的問題點，最後仍由專業人員負責。</p></div>' +
+    '<div class="card"><h3>初判報告長這樣</h3>' + SAMPLE + '</div>' +
+    uploadCard('免費試用', '<span class="quota">今日剩 ' + left + ' / ' + store.cfg.guestDaily + ' 次（照片不合格不扣次數）</span>') +
+    '<div class="card"><h3>這台裝置的試用紀錄</h3>' + (mine.length ? mine.map(function(c){ return caseRow(c); }).join('') : '<div class="empty">還沒有試用紀錄</div>') + '</div>';
+}
+function viewUser(){
+  var mine = store.cases.filter(function(c){ return !c.trial && c.company === S.company; });
+  return '<h2>' + esc(S.company) + '｜送審</h2>' + uploadCard('上傳標籤照片', '') +
+    '<div class="card"><h3>本公司案件（' + mine.length + '）</h3><p class="muted" style="margin-bottom:6px">只顯示「' + esc(S.company) + '」的案件，其他公司的看不到。</p>' +
+    (mine.length ? mine.map(function(c){ return caseRow(c); }).join('') : '<div class="empty">尚無案件</div>') + '</div>';
+}
+function viewTech(){
+  var wait = store.cases.filter(function(c){ return c.status === 'wait'; });
+  var done = store.cases.filter(function(c){ return c.status !== 'wait'; });
+  var list = UI.tab === 'wait' ? wait : done;
+  return '<h2>審查佇列</h2><div class="tabs"><button data-act="tab" data-tab="wait" class="' + (UI.tab === 'wait' ? 'on' : '') + '">待審（' + wait.length + '）</button>' +
+    '<button data-act="tab" data-tab="done" class="' + (UI.tab === 'done' ? 'on' : '') + '">已結案（' + done.length + '）</button></div>' +
+    '<div class="card">' + (list.length ? list.map(function(c){ return caseRow(c, {showCo:true, click:true}); }).join('') : '<div class="empty">' + (UI.tab === 'wait' ? '目前沒有待審案件' : '尚無結案案件') + '</div>') + '</div>' +
+    '<p class="muted">點案件可放大看圖、判定通過（用印）或退件。</p>';
+}
+function viewDev(){
+  var cfg = store.cfg, st = getStats();
+  var roles = ['guest','user','tech','dev'];
+  var perm = '<table><tr><th>功能</th>' + roles.map(function(r){ return '<th>' + ROLE_LABEL[r] + '</th>'; }).join('') + '</tr>' +
+    Object.keys(PERM).map(function(k){ return '<tr><td>' + k + '</td>' + roles.map(function(r){ return '<td class="' + (PERM[k].indexOf(r) >= 0 ? 'yes">✓' : 'no">－') + '</td>'; }).join('') + '</tr>'; }).join('') + '</table>';
+  var b = UI.bench;
+  var bench = b ? '<div class="res ' + (b.pass ? 'ok' : 'ng') + '"><div class="res-h"><div class="t"><b>' + (b.pass ? '✅ 會通過' : '❌ 會被擋下') + '</b><span>' + esc(b.file) + '（' + b.W + '×' + b.H + '）</span></div></div>' +
+    b.list.map(function(c){ return '<div class="chk"><i>' + (c.ok ? '✅' : '❌') + '</i><span>' + esc(c.name) + '</span><em>' + esc(c.val) + '</em></div>'; }).join('') + '</div>' : '';
+  return '<h2>開發者後台</h2>' +
+    '<div class="card"><h3>統計</h3><div class="stats">' +
+    '<div class="stat"><b>' + st.total + '</b><span>案件總數</span></div><div class="stat"><b>' + st.wait + '</b><span>待審</span></div>' +
+    '<div class="stat"><b>' + st.pass + '</b><span>通過</span></div><div class="stat"><b>' + st.reject + '</b><span>退件</span></div>' +
+    '<div class="stat"><b>' + st.trial + '</b><span>試用件</span></div><div class="stat"><b>' + st.blocked + '</b><span>今日擋下照片</span></div></div>' +
+    '<p class="muted" style="margin-top:8px">開發者看不到客戶的標籤原圖，只看統計與紀錄。</p></div>' +
+    '<div class="card"><h3>照片品質門檻</h3><div class="grid2">' +
+    '<label class="field"><span>最小長邊（像素）</span><input id="c_minLong" type="number" value="' + cfg.minLong + '"></label>' +
+    '<label class="field"><span>清晰度下限</span><input id="c_blurMin" type="number" value="' + cfg.blurMin + '"></label>' +
+    '<label class="field"><span>亮度下限（0–255）</span><input id="c_darkMean" type="number" value="' + cfg.darkMean + '"></label>' +
+    '<label class="field"><span>過曝面積上限（%）</span><input id="c_over" type="number" value="' + Math.round(cfg.overRatio*100) + '"></label>' +
+    '<label class="field"><span>路人每日試用次數</span><input id="c_guest" type="number" value="' + cfg.guestDaily + '"></label>' +
+    '<label class="field"><span>檔案上限（MB）</span><input id="c_maxMB" type="number" value="' + cfg.maxMB + '"></label></div>' +
+    '<div class="err" id="cfgMsg"></div><div class="row"><button class="btn ghost" data-act="cfgReset">恢復預設</button><button class="btn" data-act="cfgSave">儲存門檻</button></div></div>' +
+    '<div class="card"><h3>門檻測試台</h3><p class="muted">選一張照片看各項分數，用來校正門檻；不會存檔、不會建案。</p>' +
+    '<label class="drop" style="margin-top:8px"><input type="file" accept="image/*" data-act="bench"><b>選擇測試照片</b><span>建議清楚、模糊各拍幾張比對分數</span></label>' + bench + '</div>' +
+    '<div class="card"><h3>權限矩陣</h3>' + perm + '<p class="muted" style="margin-top:8px">' + (MODE === 'supa' ? '權限由資料庫層把關：就算網頁被改，也拿不到不該看的資料。' : '此版由網頁程式把關；正式版搬到資料庫層，程式寫錯也不會越權。') + '</p></div>' +
+    '<div class="card"><h3>系統紀錄（最近 80 筆）</h3>' + (store.logs.length ? store.logs.map(function(l){ return '<div class="log"><time>' + fmt(l.ts) + '</time><span>[' + esc(ROLE_LABEL[l.role] || l.role) + '] ' + esc(l.type) + '：' + esc(l.msg) + '</span></div>'; }).join('') : '<div class="empty">尚無紀錄</div>') + '</div>';
+}
+
+var pendingRender = false;
+function render(){
+  var ae = document.activeElement;
+  if (ae && $('app').contains(ae) && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA') && ae.type !== 'file') { pendingRender = true; return; }
+  pendingRender = false;
+  $('me').textContent = S ? ROLE_LABEL[S.role] + (S.role === 'user' ? '｜' + S.company : S.name ? '｜' + S.name : '') : '尚未選擇身分';
+  $('switchBtn').hidden = !S;
+  var html;
+  if (!S) html = viewLogin();
+  else if (MODE === 'connecting') html = '<div class="empty" style="padding:40px 0">連線中…</div>';
+  else if (S.role === 'guest') html = viewGuest();
+  else if (S.role === 'user') html = viewUser();
+  else if (S.role === 'tech') html = viewTech();
+  else html = viewDev();
+  $('app').innerHTML = html;
+}
+document.addEventListener('focusout', function(){ setTimeout(function(){ if (pendingRender) render(); }, 0); });
+
+/* ===== 技師判定彈窗 ===== */
+function openCase(id){
+  var c = store.cases.filter(function(x){ return x.id === id; })[0]; if (!c || !can('審查佇列、判定、用印')) return;
+  var src = c.thumb, m = c.metrics || {};
+  var decided = c.status !== 'wait';
+  $('sheet').innerHTML = '<button class="x" data-act="close">×</button><h3>' + esc(c.id) + (c.trial ? '<span class="tag">試用</span>' : '') + '</h3>' +
+    '<p class="muted">' + esc(c.company) + '｜' + esc(c.submitter) + '｜' + fmt(c.ts) + '｜' + esc(c.fileName) + '</p>' +
+    '<img class="big" id="bigImg" src="' + src + '" alt="標籤照片">' + (c.assetNote ? '<p class="muted">' + esc(c.assetNote) + '</p>' : '') +
+    '<table><tr><th>照片品質（已通過閘門）</th><th></th></tr><tr><td>尺寸</td><td>' + m.W + '×' + m.H + '</td></tr><tr><td>清晰度分數</td><td>' + m.sharp + '</td></tr>' +
+    '<tr><td>亮度</td><td>' + m.mean + '</td></tr><tr><td>過曝面積</td><td>' + ((m.overRatio || 0)*100).toFixed(1) + '%</td></tr></table>' +
+    '<div class="card" style="background:var(--blue-2);margin-top:12px;box-shadow:none"><b style="color:var(--blue)">AI 初審</b><p class="muted">V.1 開放。屆時這裡會列出 AI 標出的疑點，技師逐條確認。</p></div>' +
+    (decided ? '<p>' + stChip(c.status) + '</p><div class="note">' + esc(c.review.note || '（無意見）') + '</div>' + (c.status === 'pass' ? '<div class="stamp">' + esc(c.review.stamp) + '</div>' : '') :
+    '<label class="field" style="margin-top:12px"><span>判定意見（退件必填）</span><textarea id="vnote" rows="3" placeholder="例：過敏原漏列大豆，請補上後重送"></textarea></label><div class="err" id="vErr"></div>' +
+    '<div class="row"><button class="btn red" data-act="verdict" data-v="reject" data-id="' + esc(c.id) + '">退件</button><button class="btn" data-act="verdict" data-v="pass" data-id="' + esc(c.id) + '">通過並用印</button></div>');
+  $('modal').classList.remove('hidden');
+  resolveImg(c).then(function(u){ var el = $('bigImg'); if (el && u) el.src = u; }).catch(function(){});
+}
+function closeModal(){ $('modal').classList.add('hidden'); $('sheet').innerHTML = ''; }
+function verdict(id, v, btn){
+  var note = ($('vnote') && $('vnote').value || '').trim();
+  if (v === 'reject' && !note) { $('vErr').textContent = '退件請填寫原因，客戶才知道要改哪裡。'; return; }
+  var now = new Date();
+  var review = {by:S.name, at:now.getTime(), note:note, stamp:S.name + ' ' + now.getFullYear() + '/' + (now.getMonth()+1) + '/' + now.getDate() + ' ' + pad(now.getHours()) + ':' + pad(now.getMinutes()) + ' 審訖'};
+  btn.disabled = true;
+  patchCase(id, {status:v, review:review}).then(function(){
+    addLog(v === 'pass' ? '通過用印' : '退件', '案號 ' + id); closeModal();
+  }).catch(function(e){ btn.disabled = false; $('vErr').textContent = '存檔失敗（' + ((e && e.code) || '未知') + '），請再按一次。'; });
+}
+
+/* ===== 事件 ===== */
+document.addEventListener('click', function(ev){
+  var t = ev.target.closest('[data-act]'); if (!t) { if (ev.target === $('modal')) closeModal(); return; }
+  var a = t.getAttribute('data-act');
+  if (a === 'guest') doLogout().then(function(){ setSession({role:'guest'}); });
+  else if (a === 'fill') { var k = t.getAttribute('data-acct'); $('acct').value = k; $('pw').value = ACCOUNTS[k].pw; $('loginErr').textContent = ''; }
+  else if (a === 'login') {
+    var k2 = ($('acct').value || '').trim().toLowerCase(), p = $('pw').value;
+    t.disabled = true; $('loginErr').textContent = '';
+    doLogin(k2, p).then(function(sess){ setSession(sess); addLog('登入', sess.company || sess.name); })
+      .catch(function(e){ t.disabled = false; $('loginErr').textContent = (e && e.message) || '登入失敗'; });
+  }
+  else if (a === 'logout') { closeModal(); doLogout().then(function(){ setSession(null); }); }
+  else if (a === 'tab') { UI.tab = t.getAttribute('data-tab'); render(); }
+  else if (a === 'open') openCase(t.getAttribute('data-id'));
+  else if (a === 'close') closeModal();
+  else if (a === 'verdict') verdict(t.getAttribute('data-id'), t.getAttribute('data-v'), t);
+  else if (a === 'cfgReset') { saveCfg(Object.assign({}, DEFAULT_CFG)).then(function(){ addLog('門檻設定', '恢復預設值'); }); }
+  else if (a === 'cfgSave') {
+    var n = function(id){ return parseFloat($(id).value); };
+    var cfg = {minLong:n('c_minLong'), blurMin:n('c_blurMin'), darkMean:n('c_darkMean'), overRatio:n('c_over')/100, guestDaily:Math.round(n('c_guest')), maxMB:n('c_maxMB')};
+    for (var key in cfg) if (!(cfg[key] >= 0)) { $('cfgMsg').textContent = '每一格都要填 0 以上的數字'; return; }
+    saveCfg(cfg).then(function(){ addLog('門檻設定', '長邊≥' + cfg.minLong + '、清晰度≥' + cfg.blurMin + '、亮度≥' + cfg.darkMean + '、過曝≤' + Math.round(cfg.overRatio*100) + '%、試用' + cfg.guestDaily + '次/日、檔案≤' + cfg.maxMB + 'MB'); $('cfgMsg').textContent = ''; })
+      .catch(function(e){ $('cfgMsg').textContent = '儲存失敗（' + ((e && e.code) || '未知') + '）'; });
+  }
+});
+document.addEventListener('change', function(ev){
+  var t = ev.target, a = t.getAttribute && t.getAttribute('data-act');
+  if (a === 'files') { var fs = t.files; handleFiles(fs); }
+  else if (a === 'bench' && t.files && t.files[0]) {
+    var f = t.files[0];
+    loadImage(f).then(function(o){ var m = analyze(o.im), j = judge(m, f, store.cfg, o.converted); URL.revokeObjectURL(o.url);
+      UI.bench = {file:f.name, W:m.W, H:m.H, pass:j.pass, list:j.list}; render(); })
+    .catch(function(){ UI.bench = {file:f.name, W:0, H:0, pass:false, list:[{name:'檔案格式', ok:false, val:'無法讀取'}]}; render(); });
+  }
+});
+document.addEventListener('keydown', function(ev){ if (ev.key === 'Enter' && ev.target && (ev.target.id === 'pw' || ev.target.id === 'acct')) { var b = document.querySelector('[data-act="login"]'); if (b) b.click(); } });
+
+/* ===== 正式版資料層：Supabase（SB_URL 有值時啟用）===== */
+var SB_URL = 'https://pnefvnzarnxticwdclrv.supabase.co', SB_KEY = 'sb_publishable_NgEuk9fR2NsmIPamLT4pkw_X19TNAZJ';
+var SB = null, loadAll = function(){};
+if (SB_URL) (function(){
+  function errText(e){ return (e && (e.message || e.code)) || '未知原因'; }
+  function toRow(c){ return {id:c.id, ts:c.ts, status:c.status, file_name:c.fileName, thumb:c.thumb, img_path:c.imgPath || null,
+    owner_role:c.ownerRole, owner_id:S.role === 'guest' ? null : S.uid, device_id:c.trial ? DEVICE : null,
+    company:c.company, submitter:c.submitter, trial:c.trial, metrics:c.metrics, review:null}; }
+  function fromRow(r){ return {id:r.id, ts:Number(r.ts), status:r.status, fileName:r.file_name, thumb:r.thumb, imgPath:r.img_path,
+    ownerRole:r.owner_role, owner:r.trial ? r.device_id : r.owner_id, company:r.company, submitter:r.submitter,
+    trial:r.trial, metrics:r.metrics, review:r.review}; }
+  function cfgFrom(r){ return {minLong:r.min_long, blurMin:r.blur_min, darkMean:r.dark_mean, overRatio:r.over_ratio, guestDaily:r.guest_daily, maxMB:r.max_mb}; }
+  loadAll = function(){
+    if (!SB) return;
+    var jobs = [SB.from('config').select('*').eq('id', 1).maybeSingle().then(function(r){ if (r.data) store.cfg = cfgFrom(r.data); })];
+    if (S && S.role !== 'dev') jobs.push(SB.from('cases').select('*').order('ts', {ascending:false}).limit(300).then(function(r){ if (!r.error) store.cases = (r.data || []).map(fromRow); }));
+    if (S && S.role === 'dev') {
+      jobs.push(SB.rpc('dev_stats').then(function(r){ store.stats = r.data || null; }));
+      jobs.push(SB.from('logs').select('*').order('id', {ascending:false}).limit(80).then(function(r){ store.logs = (r.data || []).map(function(l){ l.ts = Number(l.ts); return l; }); }));
+    }
+    if (S && S.role === 'guest') jobs.push(SB.rpc('guest_used_today', {dev:DEVICE}).then(function(r){ if (typeof r.data === 'number') store.quota = r.data; }));
+    Promise.all(jobs).then(function(){ store.loaded = true; render(); }, function(){});
+  };
+  initStore = function(){
+    var sc = document.createElement('script');
+    sc.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.0/dist/umd/supabase.js';
+    sc.onload = function(){
+      SB = window.supabase.createClient(SB_URL, SB_KEY, {global:{headers:{'x-device-id':DEVICE}}, auth:{storageKey:'lv0_auth', persistSession:true, autoRefreshToken:true}});
+      MODE = 'supa'; setBanner('已連線正式資料庫，權限由資料庫把關');
+      SB.auth.getSession().then(function(r){
+        var has = r && r.data && r.data.session;
+        if (S && S.role !== 'guest' && !has) { S = null; ssSet('lv0_session', null); }
+        if (S && S.role === 'guest' && has) SB.auth.signOut();
+        loadAll(); setInterval(loadAll, 15000); render();
+      });
+    };
+    sc.onerror = function(){ setBanner('無法連線，請檢查網路後重新整理頁面。', true); };
+    document.head.appendChild(sc);
+  };
+  saveCase = function(c){
+    return SB.from('cases').insert(toRow(c)).then(function(r){
+      if (r.error) throw new Error(S.role === 'guest' ? '今日試用次數已用完，或暫時無法存檔' : errText(r.error));
+      store.cases.unshift(c); render();
+    });
+  };
+  patchCase = function(id, p){
+    return SB.from('cases').update({status:p.status, review:p.review}).eq('id', id).select('id').then(function(r){
+      if (r.error || !r.data || !r.data.length) throw new Error(r.error ? errText(r.error) : '沒有判定權限');
+      loadAll();
+    });
+  };
+  saveCfg = function(cfg){
+    return SB.from('config').update({min_long:Math.round(cfg.minLong), blur_min:Math.round(cfg.blurMin), dark_mean:Math.round(cfg.darkMean),
+      over_ratio:cfg.overRatio, guest_daily:cfg.guestDaily, max_mb:Math.round(cfg.maxMB), updated_at:new Date().toISOString()})
+      .eq('id', 1).select('id').then(function(r){
+        if (r.error || !r.data || !r.data.length) throw new Error(r.error ? errText(r.error) : '沒有權限');
+        store.cfg = cfg; render();
+      });
+  };
+  addLog = function(type, msg){
+    if (!SB) return Promise.resolve();
+    return SB.from('logs').insert({ts:Date.now(), role:S ? S.role : '-', who:S ? (S.company || S.name || ROLE_LABEL[S.role]) : '-', type:type, msg:String(msg).slice(0, 480)}).then(function(){}, function(){});
+  };
+  refreshQuota = function(){ store.cases = []; store.logs = []; store.stats = null; loadAll(); };
+  useQuota = function(){ store.quota += 1; return Promise.resolve(); };
+  uploadOriginal = function(c, file){
+    var ext = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg';
+    var path = (S.role === 'guest' ? 'g/' + DEVICE : 'co/' + S.code) + '/' + c.id + '.' + ext;
+    return SB.storage.from('labels').upload(path, file, {contentType:file.type || 'image/jpeg', upsert:false})
+      .then(function(r){ if (r.error) c.assetNote = '原圖上傳失敗，僅保留縮圖'; else c.imgPath = path; }, function(){ c.assetNote = '原圖上傳失敗，僅保留縮圖'; });
+  };
+  resolveImg = function(c){
+    if (!c.imgPath) return Promise.resolve(c.thumb);
+    return SB.storage.from('labels').createSignedUrl(c.imgPath, 600).then(function(r){ return r.data ? r.data.signedUrl : c.thumb; });
+  };
+  getStats = function(){ var t = store.stats || {}; return {total:t.total || 0, wait:t.wait || 0, pass:t.pass || 0, reject:t.reject || 0, trial:t.trial || 0, blocked:t.blocked || 0}; };
+  doLogin = function(k, p){
+    if (!SB) return Promise.reject(new Error('連線中，請稍候再試'));
+    return SB.auth.signInWithPassword({email:k + '@label-v0.test', password:p}).then(function(r){
+      if (r.error) throw new Error('帳號或密碼不正確');
+      var uid = r.data.user.id;
+      return SB.from('profiles').select('*').eq('id', uid).single().then(function(q){
+        if (q.error || !q.data) throw new Error('找不到此帳號的身分設定');
+        return {role:q.data.role, acct:k, uid:uid, name:q.data.name, company:q.data.company || '', code:q.data.company_code || ''};
+      });
+    });
+  };
+  doLogout = function(){ return SB ? SB.auth.signOut().then(function(){}, function(){}) : Promise.resolve(); };
+})();
+
+render();
+initStore();
+</script>
+</body>
+</html>

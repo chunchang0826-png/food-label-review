@@ -78,6 +78,7 @@ tr.fill:hover td{background:var(--main-2)}
 .scside.on{background:#ffd23f;color:#000}
 #scNativeSide{width:76px;font-size:12px}
 .scfallback{position:relative;overflow:hidden;margin:0 16px 14px;width:auto;font-size:17px;padding:16px}
+.screlive{margin:0 16px 16px;background:rgba(255,255,255,.15);color:#fff;border:0}
 .scfallback input{position:absolute;inset:0;left:0;top:0;width:100%;height:100%;opacity:0}
 #scShutter{width:72px;height:72px;border-radius:50%;border:5px solid #fff;background:rgba(255,255,255,.25);cursor:pointer}
 #scShutter:active{background:#fff}
@@ -179,6 +180,7 @@ footer{text-align:center;font-size:12px;color:var(--sub);margin-top:24px}
     <div class="scbot"><label class="scside">相簿<input type="file" accept="image/*" data-sc="album"></label>
       <button id="scShutter" data-sc="shutter" aria-label="拍照"></button><label class="scside" id="scNativeSide">手機相機<input type="file" accept="image/*" capture="environment" data-sc="album"></label></div>
     <label class="btn block scfallback" id="scFallback" hidden>📷 改用手機相機拍照<input type="file" accept="image/*" capture="environment" data-sc="album"></label>
+    <button class="btn ghost screlive" id="scRelive" data-sc="relive" hidden>重新開啟掃描鏡頭</button>
   </div>
   <div class="scpane" id="sc_edit" hidden>
     <div class="scbar"><button class="scx" data-sc="close" aria-label="關閉">×</button><div class="schint" id="scEditHint" style="flex:1"></div></div>
@@ -755,11 +757,15 @@ function openScanner(){
   scEl('scan').classList.remove('hidden'); scShow('cam'); scModeUI();
   scHint('載入掃描引擎中…（第一次約需數秒）');
   var cvp = loadCV();
-  scEl('scShutter').hidden = false; scEl('scFallback').hidden = true;
+  scEl('scShutter').hidden = false; scEl('scFallback').hidden = true; scEl('scRelive').hidden = true;
   clearTimeout(SC.watch);
-  SC.watch = setTimeout(function(){ if (SC.open && !(SC.stream && scEl('scVideo').videoWidth)) camFail('鏡頭沒有回應'); }, 8000);
+  SC.watch = setTimeout(function(){
+    if (!SC.open || (SC.stream && scEl('scVideo').videoWidth)) return;
+    if (SC.stream) { scEl('scVideo').play().catch(function(){}); SC.watch = setTimeout(function(){ if (SC.open && !scEl('scVideo').videoWidth) camFail('鏡頭沒有回應'); }, 4000); }
+    else camFail('鏡頭沒有回應');
+  }, 8000);
   if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) { camFail('這個瀏覽器不支援網頁相機'); return; }
-  navigator.mediaDevices.getUserMedia({audio:false, video:{facingMode:{ideal:'environment'}, width:{ideal:3840}, height:{ideal:2160}}})
+  getCam()
     .then(function(st){
       if (!SC.open) { st.getTracks().forEach(function(t){ t.stop(); }); return; }
       SC.stream = st; SC.track = st.getVideoTracks()[0];
@@ -771,16 +777,29 @@ function openScanner(){
     })
     .catch(function(e){ camFail(e && e.name === 'NotAllowedError' ? '這個瀏覽器沒有開放網頁鏡頭' : '網頁鏡頭無法開啟'); });
 }
+function delay(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
+/* 開鏡頭：上一次剛關掉時先等鏡頭釋放；高解析度失敗就改用一般設定再試一次 */
+function getCam(){
+  var hi = {audio:false, video:{facingMode:{ideal:'environment'}, width:{ideal:3840}, height:{ideal:2160}}};
+  var lo = {audio:false, video:{facingMode:{ideal:'environment'}}};
+  var wait = Math.max(0, (SC.lastStop || 0) + 800 - Date.now());
+  return delay(wait).then(function(){ return navigator.mediaDevices.getUserMedia(hi); }).catch(function(e){
+    if (e && (e.name === 'NotAllowedError' || e.name === 'SecurityError')) throw e;
+    return delay(700).then(function(){ return navigator.mediaDevices.getUserMedia(lo); });
+  });
+}
 function camFail(msg){
   if (!SC.open || SC.stream && scEl('scVideo').videoWidth) return;
-  SC.liveFailed = true; clearTimeout(SC.watch);
+  clearTimeout(SC.watch);
+  if (SC.stream) { SC.stream.getTracks().forEach(function(t){ t.stop(); }); SC.stream = null; SC.track = null; SC.lastStop = Date.now(); }
+  scEl('scRelive').hidden = false;
   scHint(msg + '：沒關係，改用手機相機拍，拍完一樣會自動框選裁切。');
   scEl('scShutter').hidden = true; scEl('scFallback').hidden = false; scLoadCV();
 }
 function scLoadCV(){ loadCV(); }
 function closeScanner(){
   SC.open = false; clearInterval(SC.loop); SC.loop = null; clearTimeout(SC.watch);
-  if (SC.stream) SC.stream.getTracks().forEach(function(t){ t.stop(); });
+  if (SC.stream) { SC.stream.getTracks().forEach(function(t){ t.stop(); }); SC.lastStop = Date.now(); }
   SC.stream = null; SC.track = null; SC.full = null; SC.edit = null;
   var v = scEl('scVideo'); if (v) v.srcObject = null;
   scEl('scShutter').hidden = false; scEl('scFallback').hidden = true;
@@ -851,7 +870,8 @@ function capture(){
   }).catch(function(){ SC.busy = false; scHint('拍照失敗，請再按一次'); });
 }
 /* 相簿照片：同樣先框四角 */
-function scanFromFile(file){
+function scanFromFile(file, native){
+  SC.fromNative = !!native;
   if (!SC.open) { SC.open = true; scEl('scan').classList.remove('hidden'); }
   scShow('edit'); scEl('scEditHint').textContent = '讀取照片中…';
   Promise.all([loadImage(file), loadCV()]).then(function(r){
@@ -930,17 +950,20 @@ function submitScan(){
 }
 function retake(){
   SC.out = null; SC.full = null; SC.edit = null; SC.quad = null; SC.stable = 0;
-  if (SC.stream) { scShow('cam'); startLoop(); } else { closeScanner(); scEl('scNative').click(); }
+  if (SC.stream) { scShow('cam'); startLoop(); }
+  else if (SC.fromNative) { closeScanner(); scEl('scNative').click(); }
+  else { closeScanner(); openScanner(); }
 }
 document.addEventListener('click', function(ev){
   var t = ev.target.closest('[data-sc]'); if (!t) return;
   var a = t.getAttribute('data-sc');
   if (a === 'open') {
     var inApp = /Line\/|FBAN|FBAV|FB_IAB|Instagram|MicroMessenger|; wv\)/i.test(navigator.userAgent);
-    if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia) || !window.isSecureContext || inApp || SC.liveFailed) { scEl('scNative').click(); }
+    if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia) || !window.isSecureContext || inApp) { scEl('scNative').click(); }
     else openScanner();
   }
   else if (a === 'close') closeScanner();
+  else if (a === 'relive') { closeScanner(); openScanner(); }
   else if (a === 'shutter') { if (SC.open && !SC.busy) capture(); }
   else if (a === 'mode') { SC.mode = t.getAttribute('data-m'); try { localStorage.setItem('lv0_scanmode', SC.mode); } catch(e){} SC.stable = 0; scModeUI(); }
   else if (a === 'torch' && SC.track) { SC.torch = !SC.torch; SC.track.applyConstraints({advanced:[{torch:SC.torch}]}).catch(function(){}); t.classList.toggle('on', SC.torch); }
@@ -956,7 +979,9 @@ function submitScanNoCrop(){
 }
 document.addEventListener('change', function(ev){
   if (ev.target && ev.target.getAttribute && ev.target.getAttribute('data-sc') === 'album' && ev.target.files && ev.target.files[0]) {
-    var f = ev.target.files[0]; ev.target.value = ''; if (SC.stream) { clearInterval(SC.loop); } scanFromFile(f);
+    var f = ev.target.files[0], nat = ev.target.hasAttribute('capture'); ev.target.value = '';
+    if (SC.stream) { clearInterval(SC.loop); SC.stream.getTracks().forEach(function(t){ t.stop(); }); SC.stream = null; SC.track = null; SC.lastStop = Date.now(); }
+    scanFromFile(f, nat);
   }
 });
 (function(){

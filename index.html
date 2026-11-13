@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>AI 食品標籤初審 V.0</title>
+<title>AI 食品標籤初審 V.0.01</title>
 <style>
 :root{
   --bg:#f4f7f5; --card:#ffffff; --ink:#1d2a26; --sub:#5b6b66; --line:#e2e9e6;
@@ -15,6 +15,7 @@ body{background:var(--bg);color:var(--ink);font-family:-apple-system,"PingFang T
 .wrap{max-width:560px;margin:0 auto;padding:0 14px 48px}
 button,input,textarea{font:inherit}
 [data-act]{touch-action:manipulation}
+[hidden]{display:none!important}
 /* 頂部 */
 .top{position:sticky;top:0;z-index:5;background:rgba(244,247,245,.96);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);display:flex;align-items:center;gap:8px;padding:12px 0 10px;border-bottom:1px solid var(--line)}
 .brand{font-weight:800;font-size:16px;color:var(--main);flex:1;white-space:nowrap}
@@ -56,6 +57,38 @@ tr.fill:hover td{background:var(--main-2)}
 .drop b{display:block;color:var(--main);font-size:17px}
 .drop span{font-size:13px;color:var(--sub)}
 .drop input{position:absolute;inset:0;left:0;top:0;width:100%;height:100%;opacity:0;cursor:pointer;z-index:2}
+.scanbtn{font-size:17px;padding:16px;margin-bottom:10px}
+.filebtn{position:relative;overflow:hidden;text-align:center;font-size:14px;padding:11px 8px}
+.filebtn input{position:absolute;inset:0;left:0;top:0;width:100%;height:100%;opacity:0;cursor:pointer}
+#scan{position:fixed;inset:0;left:0;top:0;width:100%;height:100%;background:#000;z-index:50;color:#fff;display:flex;flex-direction:column}
+#scan.hidden{display:none}
+.scpane{flex:1;display:flex;flex-direction:column;min-height:0}
+.scbar{display:flex;align-items:center;gap:8px;padding:10px 12px;padding-top:max(10px,env(safe-area-inset-top))}
+.scx{background:rgba(255,255,255,.15);border:0;color:#fff;width:38px;height:38px;border-radius:50%;font-size:20px;cursor:pointer}
+#scMode{display:flex;background:rgba(255,255,255,.15);border-radius:999px;padding:3px;margin:0 auto}
+#scMode button{border:0;background:transparent;color:#ddd;font-weight:700;font-size:14px;padding:6px 16px;border-radius:999px;cursor:pointer}
+#scMode button.on{background:#fff;color:#0f7a5c}
+.scstage{position:relative;flex:1;min-height:0;overflow:hidden}
+#scVideo{position:absolute;inset:0;left:0;top:0;width:100%;height:100%;object-fit:contain;background:#000}
+#scOverlay{position:absolute;left:0;top:0;pointer-events:none}
+.schint{text-align:center;font-size:14px;padding:8px 14px;min-height:2.6em;line-height:1.4}
+.scbot{display:flex;align-items:center;justify-content:space-around;padding:10px 12px;padding-bottom:max(16px,env(safe-area-inset-bottom))}
+.scside{position:relative;overflow:hidden;width:64px;height:44px;border-radius:12px;background:rgba(255,255,255,.15);display:grid;place-items:center;font-size:13px;font-weight:700;cursor:pointer;color:#fff;border:0}
+.scside input{position:absolute;inset:0;left:0;top:0;width:100%;height:100%;opacity:0;cursor:pointer}
+.scside.on{background:#ffd23f;color:#000}
+#scShutter{width:72px;height:72px;border-radius:50%;border:5px solid #fff;background:rgba(255,255,255,.25);cursor:pointer}
+#scShutter:active{background:#fff}
+#scShutter:disabled{opacity:.3}
+.scwrap{position:relative;flex:1;min-height:0;touch-action:none}
+#scEditCanvas{position:absolute;left:0;top:0;touch-action:none}
+#scLoupe{position:absolute;top:10px;width:180px;height:180px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 12px rgba(0,0,0,.6)}
+.scsize{text-align:center;font-size:13px;color:#bfe;padding:4px}
+.scsize.bad{color:#ff8f86;font-weight:700}
+.scbtns{display:flex;gap:8px;padding:10px 12px;padding-bottom:max(16px,env(safe-area-inset-bottom))}
+.scbtns .btn{flex:1;padding:13px 6px;font-size:15px}
+.scbtns .btn.ghost{background:rgba(255,255,255,.15);color:#fff;border:0}
+#scResult{max-width:100%;max-height:100%;object-fit:contain;display:block;margin:auto;background:#fff}
+.scresw{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:10px;overflow:hidden}
 .tips{font-size:13px;color:var(--sub);margin-top:10px;padding-left:18px}
 .quota{display:inline-block;font-size:13px;font-weight:700;background:var(--amber-2);color:var(--amber);border-radius:999px;padding:3px 12px;margin-bottom:10px}
 /* 結果 */
@@ -123,7 +156,7 @@ footer{text-align:center;font-size:12px;color:var(--sub);margin-top:24px}
 <body>
 <div class="wrap">
   <header class="top">
-    <div class="brand">標籤初審<small>V.0 驗證版</small></div>
+    <div class="brand">標籤初審<small>V.0.01</small></div>
     <div class="me" id="me">尚未選擇身分</div>
     <button class="btn sm ghost" id="switchBtn" data-act="logout" hidden>切換身分</button>
   </header>
@@ -132,10 +165,32 @@ footer{text-align:center;font-size:12px;color:var(--sub);margin-top:24px}
   <footer>服務提供：Wuchunchang(TW)</footer>
 </div>
 <div class="modal hidden" id="modal"><div class="sheet" id="sheet"></div></div>
+<div id="scan" class="hidden">
+  <div class="scpane" id="sc_cam">
+    <div class="scbar"><button class="scx" data-sc="close" aria-label="關閉">×</button>
+      <div id="scMode"><button data-sc="mode" data-m="auto">自動</button><button data-sc="mode" data-m="manual">手動</button></div>
+      <button class="scside" id="scTorch" data-sc="torch" hidden>💡</button></div>
+    <div class="scstage"><video id="scVideo" playsinline muted autoplay></video><canvas id="scOverlay"></canvas></div>
+    <div class="schint" id="scHint"></div>
+    <div class="scbot"><label class="scside">相簿<input type="file" accept="image/*" data-sc="album"></label>
+      <button id="scShutter" data-sc="shutter" aria-label="拍照"></button><div class="scside" style="visibility:hidden"></div></div>
+  </div>
+  <div class="scpane" id="sc_edit" hidden>
+    <div class="scbar"><button class="scx" data-sc="close" aria-label="關閉">×</button><div class="schint" id="scEditHint" style="flex:1"></div></div>
+    <div class="scwrap"><canvas id="scEditCanvas"></canvas><canvas id="scLoupe" width="180" height="180" hidden></canvas></div>
+    <div class="scsize" id="scEditSize"></div>
+    <div class="scbtns"><button class="btn ghost" data-sc="retake">重拍</button><button class="btn ghost" data-sc="nocrop">不裁切</button><button class="btn" data-sc="crop">裁切拉正</button></div>
+  </div>
+  <div class="scpane" id="sc_done" hidden>
+    <div class="scbar"><button class="scx" data-sc="close" aria-label="關閉">×</button><div class="schint" id="scDoneInfo" style="flex:1"></div></div>
+    <div class="scresw"><canvas id="scResult"></canvas></div>
+    <div class="scbtns"><button class="btn ghost" data-sc="retake">重拍</button><button class="btn ghost" data-sc="adjust">調整四角</button><button class="btn" data-sc="submit">送出審查</button></div>
+  </div>
+</div>
 
 <script>
 /* ===== 基本設定 ===== */
-var DEFAULT_CFG = {minLong:2000, blurMin:100, darkMean:60, overRatio:0.35, guestDaily:3, maxMB:20};
+var DEFAULT_CFG = {minLong:2000, cropMinLong:1600, blurMin:100, darkMean:60, overRatio:0.35, guestDaily:3, maxMB:20};
 var ACCOUNTS = {
   a01:{pw:'1234', role:'user', name:'王小姐', company:'客戶A食品'},
   b01:{pw:'1234', role:'user', name:'李先生', company:'客戶B食品'},
@@ -335,10 +390,10 @@ function analyze(im){
   return {W:W, H:H, long:long, sharp:Math.round(sharpness(g, w, h)), mean:Math.round(sum / g.length), overRatio:over / g.length};
 }
 function judge(m, file, cfg, converted){
-  var mb = file.size / 1048576;
+  var mb = file.size / 1048576, minL = file.__cropped ? (cfg.cropMinLong || cfg.minLong) : cfg.minLong;
   var list = [
     {name:'檔案大小', ok: mb <= cfg.maxMB, val: mb.toFixed(1) + ' MB', bad:'檔案超過 ' + cfg.maxMB + ' MB，請改傳較小的檔案。'},
-    {name:'解析度', ok: m.long >= cfg.minLong, val:'長邊 ' + m.long + ' px', bad:'照片太小（長邊 ' + m.long + ' 像素，需至少 ' + cfg.minLong + '）。請靠近一點拍，或改傳原圖，不要傳截圖。'},
+    {name:'解析度', ok: m.long >= minL, val:'長邊 ' + m.long + ' px（門檻 ' + minL + '）', bad:'照片太小（長邊 ' + m.long + ' 像素，需至少 ' + minL + '）。請靠近一點拍，或改傳原圖，不要傳截圖。'},
     {name:'清晰度', ok: m.sharp >= cfg.blurMin, val:'分數 ' + m.sharp + '（門檻 ' + cfg.blurMin + '）', bad:'照片模糊。請先點一下螢幕上的標籤文字對焦，手拿穩再按快門。'},
     {name:'亮度', ok: m.mean >= cfg.darkMean, val:'平均 ' + m.mean + '（門檻 ' + cfg.darkMean + '）', bad:'光線不足，請到明亮處重拍。'},
     {name:'反光／過曝', ok: converted || m.overRatio <= cfg.overRatio, val: converted ? 'HEIC 轉檔照片不判定，由技師目視' : (m.overRatio*100).toFixed(1) + '%（上限 ' + Math.round(cfg.overRatio*100) + '%）', bad:'反光或過曝面積太大，請換個角度避開燈光。'}
@@ -401,9 +456,10 @@ function processOne(file){
 function stChip(st){ return st === 'pass' ? '<span class="st pass">通過・已用印</span>' : st === 'reject' ? '<span class="st reject">退件</span>' : '<span class="st wait">待技師審查</span>'; }
 function uploadCard(title, sub){
   return '<div class="card"><h3>' + title + '</h3>' + (sub || '') +
-    '<label class="drop"><input type="file" accept="image/*" multiple data-act="files"' + (UI.busy ? ' disabled' : '') + '>' +
-    '<b>' + (UI.busy ? '檢查中…' : '📷 拍照或選擇標籤照片') + '</b><span>一次可選多張，每張幾秒內回覆結果</span></label>' +
-    '<ul class="tips"><li>拍標籤正面，整張標籤入鏡</li><li>先點螢幕上的文字對焦再拍</li><li>避開燈光反光；不要傳截圖</li></ul>' +
+    '<button class="btn block scanbtn" data-sc="open"' + (UI.busy ? ' disabled' : '') + '>📷 ' + (UI.busy ? '檢查中…' : '開啟掃描鏡頭') + '</button>' +
+    '<div class="row"><label class="btn ghost filebtn">🖼 相簿選一張<input type="file" accept="image/*" data-sc="album"></label>' +
+    '<label class="btn ghost filebtn">多張原圖直傳<input type="file" accept="image/*" multiple data-act="files"' + (UI.busy ? ' disabled' : '') + '></label></div>' +
+    '<ul class="tips"><li>掃描鏡頭會自動框出標籤、拉正裁切，最省事</li><li>弧面瓶罐、繞到背面的字請分開拍</li><li>避開燈光反光；不要傳截圖</li></ul>' +
     resultsHtml() + '</div>';
 }
 function resultsHtml(){
@@ -485,7 +541,8 @@ function viewDev(){
     '<div class="stat"><b>' + st.trial + '</b><span>試用件</span></div><div class="stat"><b>' + st.blocked + '</b><span>今日擋下照片</span></div></div>' +
     '<p class="muted" style="margin-top:8px">開發者看不到客戶的標籤原圖，只看統計與紀錄。</p></div>' +
     '<div class="card"><h3>照片品質門檻</h3><div class="grid2">' +
-    '<label class="field"><span>最小長邊（像素）</span><input id="c_minLong" type="number" value="' + cfg.minLong + '"></label>' +
+    '<label class="field"><span>原圖最小長邊（像素）</span><input id="c_minLong" type="number" value="' + cfg.minLong + '"></label>' +
+    '<label class="field"><span>裁切後最小長邊（像素）</span><input id="c_cropMin" type="number" value="' + (cfg.cropMinLong || 1600) + '"></label>' +
     '<label class="field"><span>清晰度下限</span><input id="c_blurMin" type="number" value="' + cfg.blurMin + '"></label>' +
     '<label class="field"><span>亮度下限（0–255）</span><input id="c_darkMean" type="number" value="' + cfg.darkMean + '"></label>' +
     '<label class="field"><span>過曝面積上限（%）</span><input id="c_over" type="number" value="' + Math.round(cfg.overRatio*100) + '"></label>' +
@@ -565,9 +622,9 @@ document.addEventListener('click', function(ev){
   else if (a === 'cfgReset') { saveCfg(Object.assign({}, DEFAULT_CFG)).then(function(){ addLog('門檻設定', '恢復預設值'); }); }
   else if (a === 'cfgSave') {
     var n = function(id){ return parseFloat($(id).value); };
-    var cfg = {minLong:n('c_minLong'), blurMin:n('c_blurMin'), darkMean:n('c_darkMean'), overRatio:n('c_over')/100, guestDaily:Math.round(n('c_guest')), maxMB:n('c_maxMB')};
+    var cfg = {minLong:n('c_minLong'), cropMinLong:n('c_cropMin'), blurMin:n('c_blurMin'), darkMean:n('c_darkMean'), overRatio:n('c_over')/100, guestDaily:Math.round(n('c_guest')), maxMB:n('c_maxMB')};
     for (var key in cfg) if (!(cfg[key] >= 0)) { $('cfgMsg').textContent = '每一格都要填 0 以上的數字'; return; }
-    saveCfg(cfg).then(function(){ addLog('門檻設定', '長邊≥' + cfg.minLong + '、清晰度≥' + cfg.blurMin + '、亮度≥' + cfg.darkMean + '、過曝≤' + Math.round(cfg.overRatio*100) + '%、試用' + cfg.guestDaily + '次/日、檔案≤' + cfg.maxMB + 'MB'); $('cfgMsg').textContent = ''; })
+    saveCfg(cfg).then(function(){ addLog('門檻設定', '原圖長邊≥' + cfg.minLong + '、裁切後≥' + cfg.cropMinLong + '、清晰度≥' + cfg.blurMin + '、亮度≥' + cfg.darkMean + '、過曝≤' + Math.round(cfg.overRatio*100) + '%、試用' + cfg.guestDaily + '次/日、檔案≤' + cfg.maxMB + 'MB'); $('cfgMsg').textContent = ''; })
       .catch(function(e){ $('cfgMsg').textContent = '儲存失敗（' + ((e && e.code) || '未知') + '）'; });
   }
 });
@@ -583,6 +640,320 @@ document.addEventListener('change', function(ev){
 });
 document.addEventListener('keydown', function(ev){ if (ev.key === 'Enter' && ev.target && (ev.target.id === 'pw' || ev.target.id === 'acct')) { var b = document.querySelector('[data-act="login"]'); if (b) b.click(); } });
 
+/* ===== 文件掃描：即時鏡頭偵測四角、自動拍照、拖角裁切、拉正 ===== */
+var CV_URL = 'https://cdn.jsdelivr.net/npm/@techstark/opencv-js@4.10.0-release.1/dist/opencv.js';
+var cvPromise = null;
+function loadCV(){
+  if (cvPromise) return cvPromise;
+  cvPromise = new Promise(function(res){
+    var done = false, finish = function(v){ if (!done){ done = true; res(v); } };
+    var check = function(){ var c = window.cv; if (c && c.Mat && c.imread) { finish(true); return true; } return false; };  /* 注意：不可用模組本身 resolve（它有 then，會無限遞迴） */
+    var sc = document.createElement('script'); sc.src = CV_URL; sc.async = true;
+    sc.onload = function(){
+      if (check()) return;
+      var c = window.cv;
+      if (c && typeof c.then === 'function') { try { c.then(function(m){ if (m && m.Mat) { try { delete m.then; } catch(e){} window.cv = m; } check(); }); } catch(e){} }
+      else if (c) { c.onRuntimeInitialized = function(){ check(); }; }
+      var n = 0, t = setInterval(function(){ if (check() || ++n > 300) { clearInterval(t); if (!done) finish(null); } }, 100);
+    };
+    sc.onerror = function(){ cvPromise = null; finish(null); };
+    document.head.appendChild(sc);
+  });
+  return cvPromise;
+}
+function cvOK(){ return !!(window.cv && window.cv.Mat && window.cv.imread); }
+
+/* 四角排序：左上、右上、右下、左下 */
+function orderQuad(p){
+  var s = p.slice().sort(function(a, b){ return (a.x + a.y) - (b.x + b.y); });
+  var tl = s[0], br = s[3], mid = [s[1], s[2]];
+  var tr = mid[0].x - mid[0].y > mid[1].x - mid[1].y ? mid[0] : mid[1];
+  var bl = tr === mid[0] ? mid[1] : mid[0];
+  return [tl, tr, br, bl];
+}
+function dist(a, b){ return Math.hypot(a.x - b.x, a.y - b.y); }
+function quadSize(q){ return {w:Math.round(Math.max(dist(q[0], q[1]), dist(q[3], q[2]))), h:Math.round(Math.max(dist(q[0], q[3]), dist(q[1], q[2])))}; }
+
+/* 在一張縮小的畫布上找「最大的四邊形」；回傳畫布座標的四角，找不到回傳 null */
+function detectQuad(cnv){
+  if (!cvOK()) return null;
+  var cv = window.cv, W = cnv.width, H = cnv.height, best = null, bestArea = W*H*0.10;
+  var src = cv.imread(cnv), gray = new cv.Mat(), blur = new cv.Mat(), edges = new cv.Mat(), k = cv.Mat.ones(3, 3, cv.CV_8U);
+  try {
+    cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+    cv.GaussianBlur(gray, blur, new cv.Size(5, 5), 0);
+    var tries = [function(){ cv.Canny(blur, edges, 40, 120); cv.dilate(edges, edges, k); },
+                 function(){ cv.threshold(blur, edges, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU); }];
+    for (var t = 0; t < tries.length && !best; t++) {
+      tries[t]();
+      var cs = new cv.MatVector(), hi = new cv.Mat();
+      cv.findContours(edges, cs, hi, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
+      for (var i = 0; i < cs.size(); i++) {
+        var c = cs.get(i), a = cv.contourArea(c);
+        if (a > bestArea) {
+          var ap = new cv.Mat(); cv.approxPolyDP(c, ap, 0.02 * cv.arcLength(c, true), true);
+          if (ap.rows === 4 && cv.isContourConvex(ap)) {
+            var pts = []; for (var j = 0; j < 4; j++) pts.push({x:ap.data32S[j*2], y:ap.data32S[j*2+1]});
+            var touches = pts.filter(function(p){ return p.x < 3 || p.y < 3 || p.x > W-4 || p.y > H-4; }).length;
+            if (touches < 3) { best = orderQuad(pts); bestArea = a; }
+          }
+          ap.delete();
+        }
+        c.delete();
+      }
+      cs.delete(); hi.delete();
+    }
+  } catch(e){ best = null; }
+  src.delete(); gray.delete(); blur.delete(); edges.delete(); k.delete();
+  return best;
+}
+/* 把大圖縮小後偵測，回傳原圖座標 */
+function detectOnCanvas(full){
+  var long = Math.max(full.width, full.height), sc = Math.min(1, 640 / long);
+  var c = document.createElement('canvas'); c.width = Math.round(full.width*sc); c.height = Math.round(full.height*sc);
+  c.getContext('2d').drawImage(full, 0, 0, c.width, c.height);
+  var q = detectQuad(c);
+  return q ? q.map(function(p){ return {x:p.x / sc, y:p.y / sc}; }) : null;
+}
+/* 依四角拉正裁切；沒有影像引擎時退回外接矩形裁切 */
+function warpCrop(full, q){
+  var sz = quadSize(q), out = document.createElement('canvas');
+  if (cvOK()) {
+    var cv = window.cv, src = cv.imread(full), dst = new cv.Mat();
+    var a = cv.matFromArray(4, 1, cv.CV_32FC2, [q[0].x,q[0].y, q[1].x,q[1].y, q[2].x,q[2].y, q[3].x,q[3].y]);
+    var b = cv.matFromArray(4, 1, cv.CV_32FC2, [0,0, sz.w,0, sz.w,sz.h, 0,sz.h]);
+    var M = cv.getPerspectiveTransform(a, b);
+    cv.warpPerspective(src, dst, M, new cv.Size(sz.w, sz.h), cv.INTER_CUBIC, cv.BORDER_REPLICATE);
+    cv.imshow(out, dst);
+    src.delete(); dst.delete(); a.delete(); b.delete(); M.delete();
+  } else {
+    var xs = q.map(function(p){ return p.x; }), ys = q.map(function(p){ return p.y; });
+    var x0 = Math.max(0, Math.min.apply(0, xs)), y0 = Math.max(0, Math.min.apply(0, ys));
+    var w = Math.min(full.width, Math.max.apply(0, xs)) - x0, h = Math.min(full.height, Math.max.apply(0, ys)) - y0;
+    out.width = Math.round(w); out.height = Math.round(h);
+    out.getContext('2d').drawImage(full, x0, y0, w, h, 0, 0, out.width, out.height);
+  }
+  return out;
+}
+function canvasToFile(c, name){
+  return new Promise(function(res){ c.toBlob(function(b){ var f = new File([b], name, {type:'image/jpeg'}); f.__cropped = true; res(f); }, 'image/jpeg', 0.92); });
+}
+
+var SC = {open:false, stream:null, track:null, loop:null, quad:null, stable:0, mode:'auto', full:null, edit:null, busy:false};
+try { SC.mode = localStorage.getItem('lv0_scanmode') || 'auto'; } catch(e){}
+function scEl(id){ return document.getElementById(id); }
+function scHint(t){ var h = scEl('scHint'); if (h) h.textContent = t; }
+
+function openScanner(){
+  if (SC.open) return;
+  SC.open = true; SC.quad = null; SC.stable = 0; SC.full = null; SC.needPreview = 0;
+  scEl('scan').classList.remove('hidden'); scShow('cam'); scModeUI();
+  scHint('載入掃描引擎中…（第一次約需數秒）');
+  var cvp = loadCV();
+  if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) { camFail('這個瀏覽器不支援網頁相機'); return; }
+  navigator.mediaDevices.getUserMedia({audio:false, video:{facingMode:{ideal:'environment'}, width:{ideal:3840}, height:{ideal:2160}}})
+    .then(function(st){
+      if (!SC.open) { st.getTracks().forEach(function(t){ t.stop(); }); return; }
+      SC.stream = st; SC.track = st.getVideoTracks()[0];
+      try { var caps = SC.track.getCapabilities ? SC.track.getCapabilities() : {};
+        if (caps.focusMode && caps.focusMode.indexOf('continuous') >= 0) SC.track.applyConstraints({advanced:[{focusMode:'continuous'}]}).catch(function(){});
+        scEl('scTorch').hidden = !caps.torch; } catch(e){ scEl('scTorch').hidden = true; }
+      var v = scEl('scVideo'); v.srcObject = st; v.play().catch(function(){});
+      cvp.then(function(c){ if (!SC.open) return; scHint(c ? (SC.mode === 'auto' ? '把整張標籤放進畫面，框線變綠並保持不動就會自動拍照' : '框好標籤後按下快門') : '掃描引擎載入失敗：仍可拍照，拍完請手動拖動四角'); startLoop(); });
+    })
+    .catch(function(e){ camFail(e && e.name === 'NotAllowedError' ? '沒有相機權限：請在瀏覽器設定允許此網站使用相機' : '無法開啟相機'); });
+}
+function camFail(msg){
+  scHint(msg + '。可改用下方「相簿」選照片。');
+  scEl('scShutter').disabled = true;
+}
+function closeScanner(){
+  SC.open = false; clearInterval(SC.loop); SC.loop = null;
+  if (SC.stream) SC.stream.getTracks().forEach(function(t){ t.stop(); });
+  SC.stream = null; SC.track = null; SC.full = null; SC.edit = null;
+  var v = scEl('scVideo'); if (v) v.srcObject = null;
+  scEl('scShutter').disabled = false;
+  scEl('scan').classList.add('hidden');
+}
+function scShow(which){ ['cam','edit','done'].forEach(function(w){ scEl('sc_' + w).hidden = w !== which; }); }
+function scModeUI(){
+  Array.prototype.forEach.call(document.querySelectorAll('#scMode button'), function(b){ b.classList.toggle('on', b.getAttribute('data-m') === SC.mode); });
+}
+/* 影片顯示區（object-fit: contain）在畫面上的位置 */
+function videoBox(){
+  var v = scEl('scVideo'), r = v.getBoundingClientRect(), vw = v.videoWidth, vh = v.videoHeight;
+  if (!vw) return null;
+  var s = Math.min(r.width / vw, r.height / vh);
+  return {x:(r.width - vw*s) / 2, y:(r.height - vh*s) / 2, s:s, vw:vw, vh:vh, w:r.width, h:r.height};
+}
+function startLoop(){
+  var small = document.createElement('canvas');
+  clearInterval(SC.loop);
+  SC.loop = setInterval(function(){
+    var v = scEl('scVideo'), ov = scEl('scOverlay'), b = videoBox();
+    if (!b || SC.busy || scEl('sc_cam').hidden) return;
+    if (ov.width !== Math.round(b.w) || ov.height !== Math.round(b.h)) { ov.width = Math.round(b.w); ov.height = Math.round(b.h); }
+    var ctx = ov.getContext('2d'); ctx.clearRect(0, 0, ov.width, ov.height);
+    if (!cvOK()) return;
+    var sc = Math.min(1, 480 / Math.max(b.vw, b.vh)); small.width = Math.round(b.vw*sc); small.height = Math.round(b.vh*sc);
+    small.getContext('2d').drawImage(v, 0, 0, small.width, small.height);
+    var q = detectQuad(small);
+    if (q) {
+      q = q.map(function(p){ return {x:p.x / sc, y:p.y / sc}; });
+      var diag = Math.hypot(b.vw, b.vh), moved = SC.quad ? Math.max.apply(0, q.map(function(p, i){ return dist(p, SC.quad[i]); })) : diag;
+      SC.stable = moved < diag * 0.02 ? SC.stable + 1 : 0;
+      SC.quad = q;
+      var need = 6, ok = SC.stable >= 2;
+      var szp = quadSize(q), tooSmall = Math.max(szp.w, szp.h) < (SC.needPreview || 0);
+      ctx.lineWidth = 4; ctx.strokeStyle = tooSmall ? '#ff6b5e' : ok ? '#2ee59d' : '#ffd23f'; ctx.fillStyle = tooSmall ? 'rgba(255,107,94,.12)' : ok ? 'rgba(46,229,157,.15)' : 'rgba(255,210,63,.12)';
+      ctx.beginPath(); q.forEach(function(p, i){ var x = b.x + p.x*b.s, y = b.y + p.y*b.s; if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y); }); ctx.closePath(); ctx.fill(); ctx.stroke();
+      var sz = quadSize(q);
+      var plong = Math.max(sz.w, sz.h), enough = plong >= (SC.needPreview || 0);
+      if (SC.mode === 'auto') {
+        if (!enough) scHint('標籤太小，請再靠近一點（目前約 ' + plong + '，需約 ' + Math.round(SC.needPreview) + ' 像素）');
+        else scHint(SC.stable >= need ? '拍照中…' : (ok ? '保持不動…' : '對準標籤') + '（目前約 ' + plong + ' 像素）');
+        if (SC.stable >= need && enough) capture();
+      } else scHint('已框到標籤，按下快門（目前約 ' + Math.max(sz.w, sz.h) + ' 像素）');
+    } else { SC.quad = null; SC.stable = 0; scHint(SC.mode === 'auto' ? '找不到標籤邊緣：換個角度、讓標籤和背景顏色分明' : '框不到也可以直接按快門，拍完手動拖角'); }
+  }, 180);
+}
+/* 拍照：支援的手機用相機原生解析度，否則用影片畫面 */
+function grabFull(){
+  var v = scEl('scVideo'), fromVideo = function(){ var c = document.createElement('canvas'); c.width = v.videoWidth; c.height = v.videoHeight; c.getContext('2d').drawImage(v, 0, 0); return c; };
+  if (window.ImageCapture && SC.track) {
+    try {
+      return new ImageCapture(SC.track).takePhoto().then(function(bl){ return createImageBitmap(bl); }).then(function(bm){
+        var c = document.createElement('canvas'); c.width = bm.width; c.height = bm.height; c.getContext('2d').drawImage(bm, 0, 0); return c;
+      }).catch(fromVideo);
+    } catch(e){}
+  }
+  return Promise.resolve(fromVideo());
+}
+function capture(){
+  if (SC.busy) return; SC.busy = true; scHint('拍照中…');
+  var preview = SC.quad, v = scEl('scVideo'); SC.prevLong = preview ? Math.max(quadSize(preview).w, quadSize(preview).h) : 0;
+  grabFull().then(function(full){
+    var q = detectOnCanvas(full);
+    if (!q && preview) { var kx = full.width / v.videoWidth, ky = full.height / v.videoHeight; q = preview.map(function(p){ return {x:p.x*kx, y:p.y*ky}; }); }
+    SC.full = full; SC.busy = false; SC.stable = 0;
+    if (SC.mode === 'auto' && q) finishCrop(q); else openEditor(q);
+  }).catch(function(){ SC.busy = false; scHint('拍照失敗，請再按一次'); });
+}
+/* 相簿照片：同樣先框四角 */
+function scanFromFile(file){
+  if (!SC.open) { SC.open = true; scEl('scan').classList.remove('hidden'); }
+  scShow('edit'); scEl('scEditHint').textContent = '讀取照片中…';
+  Promise.all([loadImage(file), loadCV()]).then(function(r){
+    var o = r[0], c = document.createElement('canvas'); c.width = o.im.naturalWidth; c.height = o.im.naturalHeight;
+    c.getContext('2d').drawImage(o.im, 0, 0); URL.revokeObjectURL(o.url);
+    SC.full = c; SC.srcName = file.name; openEditor(detectOnCanvas(c));
+  }).catch(function(){ scEl('scEditHint').textContent = '這個檔案無法讀取，請改用 JPG 或 PNG。'; });
+}
+/* 拖角編輯 */
+function openEditor(q){
+  var f = SC.full, m = Math.min(f.width, f.height) * 0.08;
+  SC.edit = q || [{x:m, y:m}, {x:f.width-m, y:m}, {x:f.width-m, y:f.height-m}, {x:m, y:f.height-m}];
+  scShow('edit');
+  scEl('scEditHint').textContent = q ? '已自動框選，拖動四個圓點可微調' : '沒有自動框到，請拖動四個圓點到標籤四角';
+  requestAnimationFrame(drawEditor);
+}
+function editBox(){
+  var cv = scEl('scEditCanvas'), r = cv.parentNode.getBoundingClientRect(), f = SC.full;
+  var s = Math.min(r.width / f.width, r.height / f.height);
+  return {s:s, x:(r.width - f.width*s) / 2, y:(r.height - f.height*s) / 2, w:r.width, h:r.height};
+}
+function drawEditor(){
+  var cv = scEl('scEditCanvas'), b = editBox(), f = SC.full, q = SC.edit; if (!f || !q) return;
+  var dpr = window.devicePixelRatio || 1; cv.width = Math.round(b.w*dpr); cv.height = Math.round(b.h*dpr); cv.style.width = b.w + 'px'; cv.style.height = b.h + 'px';
+  var ctx = cv.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.fillStyle = '#000'; ctx.fillRect(0, 0, b.w, b.h);
+  ctx.drawImage(f, b.x, b.y, f.width*b.s, f.height*b.s);
+  var P = q.map(function(p){ return {x:b.x + p.x*b.s, y:b.y + p.y*b.s}; });
+  ctx.fillStyle = 'rgba(0,0,0,.45)'; ctx.beginPath(); ctx.rect(0, 0, b.w, b.h);
+  P.slice().reverse().forEach(function(p, i){ if (i) ctx.lineTo(p.x, p.y); else ctx.moveTo(p.x, p.y); }); ctx.closePath(); ctx.fill('evenodd');
+  ctx.strokeStyle = '#2ee59d'; ctx.lineWidth = 2.5; ctx.beginPath(); P.forEach(function(p, i){ if (i) ctx.lineTo(p.x, p.y); else ctx.moveTo(p.x, p.y); }); ctx.closePath(); ctx.stroke();
+  P.forEach(function(p){ ctx.beginPath(); ctx.arc(p.x, p.y, 13, 0, 7); ctx.fillStyle = 'rgba(46,229,157,.35)'; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = '#fff'; ctx.stroke(); });
+  var sz = quadSize(q), lim = store.cfg.cropMinLong, long = Math.max(sz.w, sz.h);
+  scEl('scEditSize').textContent = '裁切後約 ' + sz.w + '×' + sz.h + ' 像素' + (long < lim ? '（低於 ' + lim + '，會被退回）' : '');
+  scEl('scEditSize').className = long < lim ? 'scsize bad' : 'scsize';
+  if (SC.drag != null) { // 放大鏡
+    var lp = scEl('scLoupe'), lc = lp.getContext('2d'), p = q[SC.drag], z = 90 / (2.5*b.s);
+    lc.fillStyle = '#000'; lc.fillRect(0, 0, 180, 180);
+    lc.drawImage(f, p.x - z, p.y - z, z*2, z*2, 0, 0, 180, 180);
+    lc.strokeStyle = '#2ee59d'; lc.lineWidth = 2; lc.beginPath(); lc.moveTo(90, 70); lc.lineTo(90, 110); lc.moveTo(70, 90); lc.lineTo(110, 90); lc.stroke();
+    lp.hidden = false; lp.style.left = (P[SC.drag].x < b.w/2 ? b.w - 190 : 10) + 'px';
+  } else scEl('scLoupe').hidden = true;
+}
+function editPointer(ev, phase){
+  if (!SC.edit) return;
+  var cv = scEl('scEditCanvas'), r = cv.getBoundingClientRect(), b = editBox();
+  var x = ev.clientX - r.left, y = ev.clientY - r.top;
+  if (phase === 'down') {
+    var best = -1, bd = 44;
+    SC.edit.forEach(function(p, i){ var d = Math.hypot(b.x + p.x*b.s - x, b.y + p.y*b.s - y); if (d < bd) { bd = d; best = i; } });
+    if (best >= 0) { SC.drag = best; try { cv.setPointerCapture(ev.pointerId); } catch(e){} ev.preventDefault(); }
+  } else if (phase === 'move' && SC.drag != null) {
+    var f = SC.full;
+    SC.edit[SC.drag] = {x:Math.max(0, Math.min(f.width, (x - b.x) / b.s)), y:Math.max(0, Math.min(f.height, (y - b.y) / b.s))};
+    ev.preventDefault();
+  } else if (phase === 'up') { SC.drag = null; }
+  drawEditor();
+}
+function finishCrop(q){
+  q = orderQuad(q); SC.lastQ = q;
+  var sz = quadSize(q), lim = store.cfg.cropMinLong, long = Math.max(sz.w, sz.h);
+  if (long < lim) {
+    if (SC.mode === 'auto' && scEl('sc_edit').hidden) { if (SC.prevLong) SC.needPreview = SC.prevLong * lim / long * 1.03; SC.stable = 0; scShow('cam'); scHint('標籤太小（約 ' + long + ' 像素，需 ' + lim + '），請再靠近一點'); return; }
+    scEl('scEditHint').textContent = '裁切後只有約 ' + long + ' 像素，低於 ' + lim + '：字會太小，請重拍並靠近一點'; return;
+  }
+  var out = warpCrop(SC.full, orderQuad(q));
+  SC.out = out; scShow('done');
+  var pv = scEl('scResult'); pv.width = out.width; pv.height = out.height; pv.getContext('2d').drawImage(out, 0, 0);
+  scEl('scDoneInfo').textContent = '已裁切拉正：' + out.width + '×' + out.height + ' 像素';
+}
+function submitScan(){
+  var out = SC.out; if (!out) return;
+  var name = (SC.srcName ? SC.srcName.replace(/\.[^.]+$/, '') : '掃描_' + ymd() + '_' + pad(new Date().getHours()) + pad(new Date().getMinutes())) + '_裁切.jpg';
+  canvasToFile(out, name).then(function(f){ SC.srcName = null; SC.out = null; closeScanner(); handleFiles([f]); });
+}
+function retake(){
+  SC.out = null; SC.full = null; SC.edit = null; SC.quad = null; SC.stable = 0;
+  if (SC.stream) { scShow('cam'); startLoop(); } else closeScanner();
+}
+document.addEventListener('click', function(ev){
+  var t = ev.target.closest('[data-sc]'); if (!t) return;
+  var a = t.getAttribute('data-sc');
+  if (a === 'open') openScanner();
+  else if (a === 'close') closeScanner();
+  else if (a === 'shutter') { if (SC.open && !SC.busy) capture(); }
+  else if (a === 'mode') { SC.mode = t.getAttribute('data-m'); try { localStorage.setItem('lv0_scanmode', SC.mode); } catch(e){} SC.stable = 0; scModeUI(); }
+  else if (a === 'torch' && SC.track) { SC.torch = !SC.torch; SC.track.applyConstraints({advanced:[{torch:SC.torch}]}).catch(function(){}); t.classList.toggle('on', SC.torch); }
+  else if (a === 'crop') finishCrop(SC.edit);
+  else if (a === 'adjust') { openEditor(SC.lastQ || SC.edit || null); }
+  else if (a === 'retake') retake();
+  else if (a === 'nocrop') { SC.out = SC.full; submitScanNoCrop(); }
+  else if (a === 'submit') submitScan();
+});
+function submitScanNoCrop(){
+  var f = SC.full; if (!f) return;
+  canvasToFile(f, (SC.srcName || '照片_' + ymd()) .replace(/\.[^.]+$/, '') + '.jpg').then(function(file){ file.__cropped = false; SC.srcName = null; closeScanner(); handleFiles([file]); });
+}
+document.addEventListener('change', function(ev){
+  if (ev.target && ev.target.getAttribute && ev.target.getAttribute('data-sc') === 'album' && ev.target.files && ev.target.files[0]) {
+    var f = ev.target.files[0]; ev.target.value = ''; if (SC.stream) { clearInterval(SC.loop); } scanFromFile(f);
+  }
+});
+(function(){
+  var cv = document.getElementById('scEditCanvas');
+  ['pointerdown','pointermove','pointerup','pointercancel'].forEach(function(n){
+    cv.addEventListener(n, function(ev){ editPointer(ev, n === 'pointerdown' ? 'down' : n === 'pointermove' ? 'move' : 'up'); });
+  });
+  document.getElementById('scVideo').addEventListener('click', function(ev){ // 點畫面對焦（支援的手機）
+    if (!SC.track) return; var r = ev.target.getBoundingClientRect();
+    SC.track.applyConstraints({advanced:[{pointsOfInterest:[{x:(ev.clientX - r.left) / r.width, y:(ev.clientY - r.top) / r.height}], focusMode:'single-shot'}]}).catch(function(){});
+  });
+  window.addEventListener('resize', function(){ if (!scEl('sc_edit').hidden) drawEditor(); });
+})();
+
 /* ===== 正式版資料層：Supabase（SB_URL 有值時啟用）===== */
 var SB_URL = 'https://pnefvnzarnxticwdclrv.supabase.co', SB_KEY = 'sb_publishable_NgEuk9fR2NsmIPamLT4pkw_X19TNAZJ';
 var SB = null, loadAll = function(){};
@@ -594,7 +965,7 @@ if (SB_URL) (function(){
   function fromRow(r){ return {id:r.id, ts:Number(r.ts), status:r.status, fileName:r.file_name, thumb:r.thumb, imgPath:r.img_path,
     ownerRole:r.owner_role, owner:r.trial ? r.device_id : r.owner_id, company:r.company, submitter:r.submitter,
     trial:r.trial, metrics:r.metrics, review:r.review}; }
-  function cfgFrom(r){ return {minLong:r.min_long, blurMin:r.blur_min, darkMean:r.dark_mean, overRatio:r.over_ratio, guestDaily:r.guest_daily, maxMB:r.max_mb}; }
+  function cfgFrom(r){ return {minLong:r.min_long, cropMinLong:r.crop_min_long || 1600, blurMin:r.blur_min, darkMean:r.dark_mean, overRatio:r.over_ratio, guestDaily:r.guest_daily, maxMB:r.max_mb}; }
   loadAll = function(){
     if (!SB) return;
     var jobs = [SB.from('config').select('*').eq('id', 1).maybeSingle().then(function(r){ if (r.data) store.cfg = cfgFrom(r.data); })];
@@ -635,7 +1006,7 @@ if (SB_URL) (function(){
     });
   };
   saveCfg = function(cfg){
-    return SB.from('config').update({min_long:Math.round(cfg.minLong), blur_min:Math.round(cfg.blurMin), dark_mean:Math.round(cfg.darkMean),
+    return SB.from('config').update({min_long:Math.round(cfg.minLong), crop_min_long:Math.round(cfg.cropMinLong), blur_min:Math.round(cfg.blurMin), dark_mean:Math.round(cfg.darkMean),
       over_ratio:cfg.overRatio, guest_daily:cfg.guestDaily, max_mb:Math.round(cfg.maxMB), updated_at:new Date().toISOString()})
       .eq('id', 1).select('id').then(function(r){
         if (r.error || !r.data || !r.data.length) throw new Error(r.error ? errText(r.error) : '沒有權限');

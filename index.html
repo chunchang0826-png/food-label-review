@@ -255,16 +255,24 @@ function fmt(ts){ var d = new Date(ts); return (d.getMonth()+1) + '/' + d.getDat
 function rid(n){ var s = ''; var c = 'abcdefghjkmnpqrstuvwxyz23456789'; for (var i = 0; i < n; i++) s += c[Math.floor(Math.random()*c.length)]; return s; }
 function lsGet(k){ try { return localStorage.getItem(k); } catch(e){ return null; } }
 function lsSet(k, v){ try { localStorage.setItem(k, v); } catch(e){} }
-function ssGet(k){ try { return sessionStorage.getItem(k); } catch(e){ return null; } }
-function ssSet(k, v){ try { if (v == null) sessionStorage.removeItem(k); else sessionStorage.setItem(k, v); } catch(e){} }
+function rememberOn(){ try { return localStorage.getItem('lv0_remember') !== '0'; } catch(e){ return false; } }
+function setRemember(on){ try { localStorage.setItem('lv0_remember', on ? '1' : '0'); } catch(e){} }
+function stores(){ var a = []; try { a.push(localStorage); } catch(e){} try { a.push(sessionStorage); } catch(e){} return a; }
+function ssGet(k){ try { return (rememberOn() ? localStorage : sessionStorage).getItem(k); } catch(e){ return null; } }
+function ssSet(k, v){
+  stores().forEach(function(st){ try { st.removeItem(k); } catch(e){} });
+  if (v == null) return;
+  try { (rememberOn() ? localStorage : sessionStorage).setItem(k, v); } catch(e){}
+}
+var AUTH_STORE = {getItem:function(k){ return ssGet(k); }, setItem:function(k, v){ ssSet(k, v); }, removeItem:function(k){ ssSet(k, null); }};
 
 var DEVICE = lsGet('lv0_device');
 if (!DEVICE) { DEVICE = 'd' + Date.now().toString(36) + rid(4); lsSet('lv0_device', DEVICE); }
 
 /* ===== 目前身分 ===== */
 var S = null;
-try { S = JSON.parse(ssGet('lv0_session') || 'null'); } catch(e){ S = null; }
-function setSession(s){ S = s; ssSet('lv0_session', s ? JSON.stringify(s) : null); UI = {tab:'wait', results:[], bench:null, busy:false, auth:'login', authMsg:''}; refreshQuota(); render(); }
+try { S = JSON.parse(ssGet('lv0_session') || sessionStorage.getItem('lv0_session') || 'null'); } catch(e){ S = null; }
+function setSession(s){ S = s; ssSet('lv0_session', s && s.role !== 'guest' ? JSON.stringify(s) : null); if (s && s.role === 'guest') { try { sessionStorage.setItem('lv0_session', JSON.stringify(s)); } catch(e){} } UI = {tab:'wait', results:[], bench:null, busy:false, auth:'login', authMsg:''}; refreshQuota(); render(); }
 
 /* ===== 資料層（雲端；連不上時改單機） ===== */
 var MODE = 'connecting', DB = null, ASSETS = null;
@@ -525,9 +533,9 @@ var SAMPLE = '<div class="report"><div class="rp-h"><span>📋 初判報告｜�
   '<div class="rp-row"><span class="lv b">ℹ 需人工確認</span><span>營養標示數值需以檢驗報告或計算書核對，照片無法驗證。</span></div></div>' +
   '<p class="muted" style="margin-top:8px">※ 以上為格式示意，非真實產品。AI 初審於 V.1 開放，V.0 由技師直接判定。</p>';
 
-function fld(id, label, type, ph, hint, val){
-  return '<label class="field"><span>' + label + '</span><input id="' + id + '" type="' + (type || 'text') + '"' + (ph ? ' placeholder="' + ph + '"' : '') +
-    (val ? ' value="' + esc(val) + '"' : '') + ' autocomplete="off" autocapitalize="off" spellcheck="false">' + (hint ? '<div class="hint">' + hint + '</div>' : '') + '</label>';
+function fld(id, label, type, ph, hint, val, ac){
+  return '<label class="field"><span>' + label + '</span><input id="' + id + '" name="' + id + '" type="' + (type || 'text') + '"' + (ph ? ' placeholder="' + ph + '"' : '') +
+    (val ? ' value="' + esc(val) + '"' : '') + ' autocomplete="' + (ac || 'off') + '" autocapitalize="off" spellcheck="false">' + (hint ? '<div class="hint">' + hint + '</div>' : '') + '</label>';
 }
 function authLinks(){
   var L = [];
@@ -541,9 +549,9 @@ function viewLogin(){
   var msg = UI.authMsg ? '<div class="ok-msg">' + esc(UI.authMsg) + '</div>' : '';
   var body;
   if (UI.auth === 'register') body = '<div class="card"><h3>註冊新帳號</h3>' + msg +
-    fld('r_user', '帳號', 'text', '例：Food2026', '4～20 碼英文或數字，分大小寫，不可有空格') +
-    fld('r_pw', '密碼', 'password', '', '8～20 碼，需同時有大寫、小寫英文與數字，不可有空格') +
-    fld('r_pw2', '再輸入一次密碼', 'password') +
+    fld('r_user', '帳號', 'text', '例：Food2026', '4～20 碼英文或數字，分大小寫，不可有空格', '', 'username') +
+    fld('r_pw', '密碼', 'password', '', '8～20 碼，需同時有大寫、小寫英文與數字，不可有空格', '', 'new-password') +
+    fld('r_pw2', '再輸入一次密碼', 'password', '', '', '', 'new-password') +
     fld('r_mail', '信箱', 'email', '', '驗證信與忘記密碼的新密碼會寄到這裡') +
     fld('r_contact', '聯絡人', 'text') + fld('r_phone', '電話', 'tel', '例：0912345678', '忘記密碼時要用這支電話核對身分') +
     fld('r_co', '公司名稱', 'text') + fld('r_tax', '統一編號', 'text', '8 碼數字') +
@@ -554,9 +562,11 @@ function viewLogin(){
   else if (UI.auth === 'resend') body = '<div class="card"><h3>重寄驗證信</h3><p class="muted">註冊後沒收到驗證信、或連結過期時使用。</p>' + msg +
     fld('v_user', '帳號', 'text') + fld('v_mail', '註冊信箱', 'email') +
     '<div class="err" id="authErr"></div><button class="btn block" data-act="doResend">重寄驗證信</button>' + authLinks() + '</div>';
-  else body = '<div class="card"><h3>帳號登入</h3>' + msg + fld('acct', '帳號', 'text', '', '英文大小寫視為不同') +
-    '<label class="field"><span>密碼</span><input id="pw" type="password"></label><div class="err" id="loginErr"></div>' +
-    '<button class="btn block" data-act="login">登入</button>' + authLinks() + '</div>';
+  else body = '<div class="card"><h3>帳號登入</h3>' + msg + '<form id="loginForm" autocomplete="on">' + fld('acct', '帳號', 'text', '', '英文大小寫視為不同', '', 'username') +
+    fld('pw', '密碼', 'password', '', '', '', 'current-password') +
+    '<label class="remember" style="display:flex;align-items:center;gap:8px;margin:2px 0 12px;font-size:14px;cursor:pointer"><input type="checkbox" id="remember"' + (rememberOn() ? ' checked' : '') + ' style="width:18px;height:18px">保持登入（這台裝置）</label>' +
+    '<div class="err" id="loginErr"></div><button class="btn block" type="submit" data-act="login">登入</button></form>' +
+    '<div class="hint" style="margin-top:8px">在公用電腦或別人的手機上，請取消勾選「保持登入」，關掉瀏覽器就會自動登出。</div>' + authLinks() + '</div>';
   return '<section class="hero"><h1>拍照上傳，<br>AI 先幫你把錯抓出來</h1><p>食品標籤線上初審：照片品質把關、AI 初判、食品技師終審。</p></section>' +
     body + '<div class="card"><div class="roles"><button class="role" data-act="guest"><b>先逛逛（免登入）</b><span>觀摩說明與範例，每天可免費試用 ' + store.cfg.guestDaily + ' 次</span></button>' +
     '<div class="role" style="cursor:default"><b>企業用戶</b><span>註冊後即可正式送審；同公司已有帳號者需管理員審核</span></div></div></div>';
@@ -722,7 +732,7 @@ function openMyAcct(){
     '<tr><td>姓名</td><td>' + esc(S.name || '') + '</td></tr>' + (S.company ? '<tr><td>公司</td><td>' + esc(S.company) + '</td></tr>' : '') +
     '<tr><td>信箱</td><td>' + esc(S.email || '') + '</td></tr><tr><td>電話</td><td>' + esc(S.phone || '') + '</td></tr></table>' +
     '<p class="muted" style="margin:6px 0 12px">基本資料如需修改，請洽系統管理員。</p>' +
-    '<h3>修改密碼</h3>' + fld('m_old', '目前的密碼', 'password') + fld('m_new', '新密碼', 'password', '', '8～20 碼，需同時有大寫、小寫英文與數字，不可有空格') + fld('m_new2', '再輸入一次新密碼', 'password') +
+    '<h3>修改密碼</h3>' + '<input type="text" name="username" autocomplete="username" value="' + esc(S.acct) + '" hidden>' + fld('m_old', '目前的密碼', 'password', '', '', '', 'current-password') + fld('m_new', '新密碼', 'password', '', '8～20 碼，需同時有大寫、小寫英文與數字，不可有空格', '', 'new-password') + fld('m_new2', '再輸入一次新密碼', 'password', '', '', '', 'new-password') +
     '<div class="err" id="mErr"></div><button class="btn block" data-act="chgPw">修改密碼</button>';
   $('modal').classList.remove('hidden');
 }
@@ -786,9 +796,7 @@ function accCreate(btn){
   }).catch(function(e){ btn.disabled = false; setErr('nErr', e.message); });
 }
 function alertOk(id, m){ var e = $(id); if (e) { e.className = 'ok-msg'; e.textContent = m; } }
-document.addEventListener('keydown', function(ev){
-  if (ev.key === 'Enter' && ev.target && (ev.target.id === 'pw' || ev.target.id === 'acct')) { var b = document.querySelector('[data-act="login"]'); if (b && !b.disabled) { ev.preventDefault(); ev.target.blur(); b.click(); } }
-});
+document.addEventListener('submit', function(ev){ ev.preventDefault(); if (document.activeElement) document.activeElement.blur(); });
 document.addEventListener('change', function(ev){
   if (ev.target && ev.target.id === 'accQ') { UI.accQ = ev.target.value.trim(); ev.target.blur(); render(); }
 });
@@ -804,6 +812,7 @@ document.addEventListener('click', function(ev){
     if (!k2 || !p) { $('loginErr').textContent = '請輸入帳號和密碼'; return; }
     if (/\s/.test(k2) || /\s/.test(p)) { $('loginErr').textContent = '帳號和密碼都不能有空格'; return; }
     t.disabled = true; $('loginErr').textContent = '';
+    setRemember(!!($('remember') && $('remember').checked));
     doLogin(k2, p).then(function(sess){ if (document.activeElement) document.activeElement.blur(); setSession(sess); })
       .catch(function(e){ t.disabled = false; $('loginErr').textContent = (e && e.message) || '登入失敗'; });
   }
@@ -1294,7 +1303,7 @@ if (SB_URL) (function(){
     var sc = document.createElement('script');
     sc.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.0/dist/umd/supabase.js';
     sc.onload = function(){
-      SB = window.supabase.createClient(SB_URL, SB_KEY, {global:{headers:{'x-device-id':DEVICE}}, auth:{storageKey:'lv0_auth', persistSession:true, autoRefreshToken:true}});
+      SB = window.supabase.createClient(SB_URL, SB_KEY, {global:{headers:{'x-device-id':DEVICE}}, auth:{storageKey:'lv0_auth', storage:AUTH_STORE, persistSession:true, autoRefreshToken:true}});
       MODE = 'supa'; setBanner('已連線正式資料庫，權限由資料庫把關');
       var vt = (location.search.match(/[?&]vt=([^&]+)/) || [])[1];
       var verify = !vt ? Promise.resolve() : (function(){
@@ -1312,7 +1321,14 @@ if (SB_URL) (function(){
         var has = r && r.data && r.data.session;
         if (S && S.role !== 'guest' && !has) { S = null; ssSet('lv0_session', null); }
         if (S && S.role === 'guest' && has) SB.auth.signOut();
-        loadAll(); setInterval(loadAll, 15000); render();
+        var ready = Promise.resolve();
+        if (!S && has) ready = SB.from('profiles').select('*').eq('id', r.data.session.user.id).single().then(function(q){
+          var d = q.data;
+          if (q.error || !d || d.status !== 'active') return SB.auth.signOut();
+          S = {role:d.role, acct:d.username, uid:d.id, name:d.name, company:d.company || '', code:d.company_code || '', email:d.email || '', phone:d.phone || ''};
+          ssSet('lv0_session', JSON.stringify(S));
+        }, function(){});
+        ready.then(function(){ loadAll(); setInterval(loadAll, 15000); render(); });
       });
     };
     sc.onerror = function(){ setBanner('無法連線，請檢查網路後重新整理頁面。', true); };

@@ -165,6 +165,12 @@ tr.fill:hover td{background:var(--main-2)}
 .ok-msg{color:#1a7f37;font-size:13px;margin:4px 0 8px}
 .field select{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:#fff}
 .hint{font-size:12px;color:var(--sub);margin-top:3px}
+.pwwrap{position:relative;display:block}.pwwrap input{padding-right:46px}
+.eye{position:absolute;right:4px;top:50%;transform:translateY(-50%);width:38px;height:38px;border:0;background:transparent;color:var(--sub);cursor:pointer;display:flex;align-items:center;justify-content:center;border-radius:8px}
+.eye svg{width:22px;height:22px}
+.cf{width:100%;border-collapse:collapse;font-size:14px;margin:6px 0 12px}.cf td{padding:9px 6px;border-bottom:1px solid var(--line);vertical-align:middle}.cf td:first-child{color:var(--sub);width:34%;white-space:nowrap}
+.cf .pv{display:flex;align-items:center;gap:6px}.cf .pv .eye{position:static;transform:none}
+.done{text-align:center;padding:6px 0 4px}.done .big{font-size:40px;line-height:1}.done h3{margin:8px 0 6px}
 .acc{display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:1px dashed var(--line);font-size:13px}
 .acc .n{flex:1;min-width:0}.acc .n b{font-size:14px}.acc .n small{display:block;color:var(--sub);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .co-h{font-weight:800;font-size:13px;color:var(--blue);margin:14px 0 2px}
@@ -177,7 +183,7 @@ footer{text-align:center;font-size:12px;color:var(--sub);margin-top:24px}
 <body>
 <div class="wrap">
   <header class="top">
-    <div class="brand">標籤初審<small>V.0.02</small></div>
+    <div class="brand">標籤初審<small>V.0.03</small></div>
     <div class="me" id="me">尚未選擇身分</div>
     <button class="btn sm ghost" id="meBtn" data-act="myacct" hidden>我的帳號</button>
     <button class="btn sm ghost" id="switchBtn" data-act="logout" hidden>登出</button>
@@ -533,12 +539,31 @@ var SAMPLE = '<div class="report"><div class="rp-h"><span>📋 初判報告｜�
   '<div class="rp-row"><span class="lv b">ℹ 需人工確認</span><span>營養標示數值需以檢驗報告或計算書核對，照片無法驗證。</span></div></div>' +
   '<p class="muted" style="margin-top:8px">※ 以上為格式示意，非真實產品。AI 初審於 V.1 開放，V.0 由技師直接判定。</p>';
 
+var EYE_OPEN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/></svg>';
+var EYE_SHUT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/><path d="M3 3l18 18"/></svg>';
+function eyeBtn(target){ return '<button type="button" class="eye" data-act="eye" data-for="' + target + '" aria-label="顯示密碼" title="顯示密碼">' + EYE_SHUT + '</button>'; }
 function fld(id, label, type, ph, hint, val, ac){
-  return '<label class="field"><span>' + label + '</span><input id="' + id + '" name="' + id + '" type="' + (type || 'text') + '"' + (ph ? ' placeholder="' + ph + '"' : '') +
-    (val ? ' value="' + esc(val) + '"' : '') + ' autocomplete="' + (ac || 'off') + '" autocapitalize="off" spellcheck="false">' + (hint ? '<div class="hint">' + hint + '</div>' : '') + '</label>';
+  var inp = '<input id="' + id + '" name="' + id + '" type="' + (type || 'text') + '"' + (ph ? ' placeholder="' + ph + '"' : '') +
+    (val ? ' value="' + esc(val) + '"' : '') + ' autocomplete="' + (ac || 'off') + '" autocapitalize="off" spellcheck="false">';
+  if (type === 'password') inp = '<span class="pwwrap">' + inp + eyeBtn(id) + '</span>';
+  return '<label class="field"><span>' + label + '</span>' + inp + (hint ? '<div class="hint">' + hint + '</div>' : '') + '</label>';
+}
+function toggleEye(btn){
+  var id = btn.getAttribute('data-for'), el = $(id);
+  if (!el) return;
+  if (el.tagName === 'INPUT') {
+    var show = el.type === 'password'; el.type = show ? 'text' : 'password';
+    btn.innerHTML = show ? EYE_OPEN : EYE_SHUT;
+  } else {
+    var on = el.getAttribute('data-shown') !== '1';
+    el.textContent = on ? el.getAttribute('data-pw') : '●'.repeat(el.getAttribute('data-pw').length);
+    el.setAttribute('data-shown', on ? '1' : '0'); btn.innerHTML = on ? EYE_OPEN : EYE_SHUT;
+  }
+  btn.setAttribute('aria-label', btn.innerHTML === EYE_OPEN ? '隱藏密碼' : '顯示密碼');
 }
 function authLinks(){
   var L = [];
+  if (UI.auth === 'regConfirm' || UI.auth === 'regDone') return '';
   if (UI.auth !== 'login') L.push('<a data-act="auth" data-v="login">回登入</a>');
   if (UI.auth !== 'register') L.push('<a data-act="auth" data-v="register">註冊新帳號</a>');
   if (UI.auth !== 'forgot') L.push('<a data-act="auth" data-v="forgot">忘記密碼</a>');
@@ -548,14 +573,33 @@ function authLinks(){
 function viewLogin(){
   var msg = UI.authMsg ? '<div class="ok-msg">' + esc(UI.authMsg) + '</div>' : '';
   var body;
+  var R = UI.reg || {};
   if (UI.auth === 'register') body = '<div class="card"><h3>註冊新帳號</h3>' + msg +
-    fld('r_user', '帳號', 'text', '例：Food2026', '4～20 碼英文或數字，分大小寫，不可有空格', '', 'username') +
-    fld('r_pw', '密碼', 'password', '', '8～20 碼，需同時有大寫、小寫英文與數字，不可有空格', '', 'new-password') +
-    fld('r_pw2', '再輸入一次密碼', 'password', '', '', '', 'new-password') +
-    fld('r_mail', '信箱', 'email', '', '驗證信與忘記密碼的新密碼會寄到這裡') +
-    fld('r_contact', '聯絡人', 'text') + fld('r_phone', '電話', 'tel', '例：0912345678', '忘記密碼時要用這支電話核對身分') +
-    fld('r_co', '公司名稱', 'text') + fld('r_tax', '統一編號', 'text', '8 碼數字') +
-    '<div class="err" id="authErr"></div><button class="btn block" data-act="doRegister">送出註冊</button>' + authLinks() + '</div>';
+    fld('r_user', '帳號', 'text', '例：Food2026', '4～20 碼英文或數字，分大小寫，不可有空格', R.username, 'username') +
+    fld('r_pw', '密碼', 'password', '', '8～20 碼，需同時有大寫、小寫英文與數字，不可有空格', R.password, 'new-password') +
+    fld('r_pw2', '再輸入一次密碼', 'password', '', '', R.password, 'new-password') +
+    fld('r_mail', '信箱', 'email', '', '驗證信與忘記密碼的新密碼會寄到這裡', R.email) +
+    fld('r_contact', '聯絡人', 'text', '', '', R.contact) + fld('r_phone', '電話', 'tel', '例：0912345678', '忘記密碼時要用這支電話核對身分', R.phone) +
+    fld('r_co', '公司名稱', 'text', '', '', R.company) + fld('r_tax', '統一編號', 'text', '8 碼數字', '', R.tax_id) +
+    '<div class="err" id="authErr"></div><button class="btn block" data-act="doRegister">下一步：確認資料</button>' + authLinks() + '</div>';
+  else if (UI.auth === 'regConfirm') body = '<div class="card"><h3>請確認註冊資料</h3><p class="muted">確認無誤後按「確認建立帳號」；需要修改請按「返回修改」，已填的資料都會保留。</p>' +
+    '<table class="cf"><tr><td>帳號</td><td><b>' + esc(R.username) + '</b></td></tr>' +
+    '<tr><td>密碼</td><td><div class="pv"><span id="cf_pw" data-pw="' + esc(R.password) + '">' + '●'.repeat(R.password.length) + '</span>' + eyeBtn('cf_pw') + '</div></td></tr>' +
+    '<tr><td>信箱</td><td>' + esc(R.email) + '</td></tr><tr><td>聯絡人</td><td>' + esc(R.contact) + '</td></tr>' +
+    '<tr><td>電話</td><td>' + esc(R.phone) + '</td></tr><tr><td>公司名稱</td><td>' + esc(R.company) + '</td></tr>' +
+    '<tr><td>統一編號</td><td>' + esc(R.tax_id) + '</td></tr></table>' +
+    '<div class="hint" style="margin-bottom:10px">帳號英文大小寫視為不同，登入時請照這裡顯示的大小寫輸入。</div>' +
+    '<div class="err" id="authErr"></div><div class="row"><button class="btn ghost" data-act="auth" data-v="register">返回修改</button><button class="btn" data-act="regConfirm">確認建立帳號</button></div></div>';
+  else if (UI.auth === 'regDone') {
+    var D = UI.regDone || {};
+    body = '<div class="card"><div class="done"><div class="big">✅</div><h3>註冊成功！</h3></div>' +
+      '<p>帳號 <b>' + esc(D.username) + '</b> 已建立，驗證信已寄到 <b>' + esc(D.email) + '</b>，通常 1～2 分鐘內會收到（沒看到請檢查垃圾信件匣）。</p>' +
+      (D.pending
+        ? '<p><b>還不能立刻使用：</b>貴公司（統編 ' + esc(D.tax_id) + '）已有帳號在本系統中，為保護貴公司資料，您的帳號需經管理員審核。請先點驗證信中的連結；審核需由管理員人工處理，通常不會是幾分鐘內，審核通過後即可用這組帳號登入（審核進度可洽本系統管理員）。</p>'
+        : '<p><b>點信中的驗證連結後，就能立刻登入使用</b>，不需要另外等待開通。</p>') +
+      '<p class="muted">驗證連結 1 小時內有效；過期或沒收到，可在登入頁按「重寄驗證信」。</p>' +
+      '<button class="btn block" data-act="auth" data-v="login">回到登入頁</button></div>';
+  }
   else if (UI.auth === 'forgot') body = '<div class="card"><h3>忘記密碼</h3><p class="muted">輸入帳號與註冊時留的電話，核對正確後，系統會產生新密碼寄到您的註冊信箱。</p>' + msg +
     fld('f_user', '帳號', 'text') + fld('f_phone', '註冊時留的電話', 'tel') +
     '<div class="err" id="authErr"></div><button class="btn block" data-act="doForgot">寄送新密碼</button>' + authLinks() + '</div>';
@@ -710,11 +754,18 @@ function doRegister(btn){
     b.password !== $('r_pw2').value ? '兩次輸入的密碼不一樣' : !RE_MAIL.test(b.email) ? '信箱格式不正確' :
     !b.contact ? '請填寫聯絡人' : (b.phone.length < 8 || b.phone.length > 12) ? '電話格式不正確' :
     !b.company ? '請填寫公司名稱' : !taxIdOk(b.tax_id) ? '統一編號不正確，請再確認一次' : '';
+  UI.reg = b;
   if (e) { setErr('authErr', e); return; }
+  if (document.activeElement) document.activeElement.blur();
+  UI.auth = 'regConfirm'; UI.authMsg = ''; render(); window.scrollTo(0, 0);
+}
+function regConfirm(btn){
+  var b = UI.reg; if (!b) { UI.auth = 'register'; render(); return; }
   btn.disabled = true; setErr('authErr', '');
   callFn(b).then(function(r){
-    if (!r.ok) { btn.disabled = false; setErr('authErr', r.msg); return; }
-    UI.auth = 'login'; UI.authMsg = r.msg; render();
+    if (!r.ok) { btn.disabled = false; setErr('authErr', r.msg + '（請按「返回修改」）'); return; }
+    UI.regDone = {username:b.username, email:b.email, tax_id:b.tax_id, pending:!!r.pending}; UI.reg = null;
+    UI.auth = 'regDone'; render(); window.scrollTo(0, 0);
   }).catch(function(x){ btn.disabled = false; setErr('authErr', x.message); });
 }
 function authSimple(btn, body, check){
@@ -806,7 +857,9 @@ document.addEventListener('click', function(ev){
   var t = ev.target.closest('[data-act]'); if (!t) { if (ev.target === $('modal')) closeModal(); return; }
   var a = t.getAttribute('data-act');
   if (a === 'guest') doLogout().then(function(){ setSession({role:'guest'}); });
-  else if (a === 'auth') { UI.auth = t.getAttribute('data-v'); UI.authMsg = ''; render(); }
+  else if (a === 'auth') { UI.auth = t.getAttribute('data-v'); UI.authMsg = ''; if (UI.auth !== 'register') UI.reg = null; render(); }
+  else if (a === 'eye') toggleEye(t);
+  else if (a === 'regConfirm') regConfirm(t);
   else if (a === 'login') {
     var k2 = ($('acct').value || '').trim(), p = $('pw').value;
     if (!k2 || !p) { $('loginErr').textContent = '請輸入帳號和密碼'; return; }

@@ -160,15 +160,27 @@ tr.fill:hover td{background:var(--main-2)}
 .stamp{display:inline-block;border:2px solid var(--red);color:var(--red);border-radius:8px;padding:4px 10px;font-weight:800;font-size:13px;transform:rotate(-4deg);margin-top:6px}
 .row{display:flex;gap:10px;margin-top:10px}
 .row>*{flex:1}
+.links{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:12px;font-size:13px}
+.links a{color:var(--blue);cursor:pointer;text-decoration:underline}
+.ok-msg{color:#1a7f37;font-size:13px;margin:4px 0 8px}
+.field select{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:#fff}
+.hint{font-size:12px;color:var(--sub);margin-top:3px}
+.acc{display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:1px dashed var(--line);font-size:13px}
+.acc .n{flex:1;min-width:0}.acc .n b{font-size:14px}.acc .n small{display:block;color:var(--sub);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.co-h{font-weight:800;font-size:13px;color:var(--blue);margin:14px 0 2px}
+.st{font-size:11px;font-weight:700;padding:1px 7px;border-radius:6px;white-space:nowrap}
+.st.active{background:#e6f4ea;color:#1a7f37}.st.pending{background:#fff4e5;color:#b25e00}.st.disabled{background:#f1f1f1;color:#888}
+.warnbox{background:#fff4e5;border:1px solid #f0c27b;border-radius:12px;padding:10px 12px;font-size:13px;margin-bottom:12px}
 footer{text-align:center;font-size:12px;color:var(--sub);margin-top:24px}
 </style>
 </head>
 <body>
 <div class="wrap">
   <header class="top">
-    <div class="brand">標籤初審<small>V.0.01</small></div>
+    <div class="brand">標籤初審<small>V.0.02</small></div>
     <div class="me" id="me">尚未選擇身分</div>
-    <button class="btn sm ghost" id="switchBtn" data-act="logout" hidden>切換身分</button>
+    <button class="btn sm ghost" id="meBtn" data-act="myacct" hidden>我的帳號</button>
+    <button class="btn sm ghost" id="switchBtn" data-act="logout" hidden>登出</button>
   </header>
   <div class="banner" id="banner">連線中…</div>
   <main id="app"></main>
@@ -205,16 +217,12 @@ footer{text-align:center;font-size:12px;color:var(--sub);margin-top:24px}
 <script>
 /* ===== 基本設定 ===== */
 var DEFAULT_CFG = {minLong:2000, cropMinLong:1600, blurMin:100, darkMean:60, overRatio:0.35, guestDaily:3, maxMB:20};
-var ACCOUNTS = {
-  a01:{pw:'1234', role:'user', name:'王小姐', company:'客戶A食品'},
-  b01:{pw:'1234', role:'user', name:'李先生', company:'客戶B食品'},
-  t01:{pw:'1234', role:'tech', name:'吳技師'},
-  d01:{pw:'1234', role:'dev',  name:'開發者'}
-};
-var ROLE_LABEL = {guest:'路人', user:'用戶', tech:'食品技師', dev:'開發者'};
+var ACCOUNTS = {}; // 帳號一律存在資料庫，網頁原始碼不再放任何帳號密碼
+var ROLE_LABEL = {guest:'路人', user:'用戶', tech:'食品技師', acc:'會計', dev:'超管'};
+var STATUS_LABEL = {active:'啟用', pending:'待審核', disabled:'停用'};
 /* 權限表：每一個動作，哪些身分可以做 */
 var PERM = {
-  '觀看介紹與範例報告':      ['guest','user','tech','dev'],
+  '觀看介紹與範例報告':      ['guest','user','tech','acc','dev'],
   '免費試用（每日限次）':    ['guest'],
   '正式送審（不限次）':      ['user'],
   '查看自己的案件':          ['guest','user'],
@@ -222,9 +230,21 @@ var PERM = {
   '審查佇列、判定、用印':    ['tech'],
   '查看標籤原圖':            ['guest','user','tech'],
   '門檻設定與測試台':        ['dev'],
-  '系統紀錄與統計':          ['dev']
+  '系統紀錄與統計':          ['dev'],
+  '查看帳號清單':            ['acc','dev'],
+  '帳號管理（審核、停用、重設密碼）': ['dev'],
+  '修改自己的密碼':          ['user','tech','acc','dev']
 };
 function can(action){ return !!(S && PERM[action] && PERM[action].indexOf(S.role) >= 0); }
+var RE_USER = /^[A-Za-z0-9]{4,20}$/, RE_PW = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)\S{8,20}$/, RE_MAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+function taxIdOk(id){
+  if (!/^\d{8}$/.test(id)) return false;
+  var w = [1,2,1,2,1,2,4,1], sum = 0;
+  for (var i = 0; i < 8; i++) { var p = Number(id[i]) * w[i]; sum += Math.floor(p / 10) + (p % 10); }
+  return sum % 5 === 0 || (id[6] === '7' && (sum + 1) % 5 === 0);
+}
+function digitsOf(v){ return String(v || '').replace(/\D/g, ''); }
+function callFn(body, auth){ return Promise.reject(new Error('目前離線，無法使用帳號功能')); }
 
 /* ===== 小工具 ===== */
 function $(id){ return document.getElementById(id); }
@@ -244,7 +264,7 @@ if (!DEVICE) { DEVICE = 'd' + Date.now().toString(36) + rid(4); lsSet('lv0_devic
 /* ===== 目前身分 ===== */
 var S = null;
 try { S = JSON.parse(ssGet('lv0_session') || 'null'); } catch(e){ S = null; }
-function setSession(s){ S = s; ssSet('lv0_session', s ? JSON.stringify(s) : null); UI = {tab:'wait', results:[], bench:null, busy:false}; refreshQuota(); render(); }
+function setSession(s){ S = s; ssSet('lv0_session', s ? JSON.stringify(s) : null); UI = {tab:'wait', results:[], bench:null, busy:false, auth:'login', authMsg:''}; refreshQuota(); render(); }
 
 /* ===== 資料層（雲端；連不上時改單機） ===== */
 var MODE = 'connecting', DB = null, ASSETS = null;
@@ -422,7 +442,7 @@ function thumb(im){
 }
 
 /* ===== 送審流程（逐張即時回覆） ===== */
-var UI = {tab:'wait', results:[], bench:null, busy:false};
+var UI = {tab:'wait', results:[], bench:null, busy:false, auth:'login', authMsg:''};
 function handleFiles(files){
   if (!files || !files.length || UI.busy) return;
   UI.busy = true; UI.results = [];
@@ -505,18 +525,64 @@ var SAMPLE = '<div class="report"><div class="rp-h"><span>📋 初判報告｜�
   '<div class="rp-row"><span class="lv b">ℹ 需人工確認</span><span>營養標示數值需以檢驗報告或計算書核對，照片無法驗證。</span></div></div>' +
   '<p class="muted" style="margin-top:8px">※ 以上為格式示意，非真實產品。AI 初審於 V.1 開放，V.0 由技師直接判定。</p>';
 
+function fld(id, label, type, ph, hint, val){
+  return '<label class="field"><span>' + label + '</span><input id="' + id + '" type="' + (type || 'text') + '"' + (ph ? ' placeholder="' + ph + '"' : '') +
+    (val ? ' value="' + esc(val) + '"' : '') + ' autocomplete="off" autocapitalize="off" spellcheck="false">' + (hint ? '<div class="hint">' + hint + '</div>' : '') + '</label>';
+}
+function authLinks(){
+  var L = [];
+  if (UI.auth !== 'login') L.push('<a data-act="auth" data-v="login">回登入</a>');
+  if (UI.auth !== 'register') L.push('<a data-act="auth" data-v="register">註冊新帳號</a>');
+  if (UI.auth !== 'forgot') L.push('<a data-act="auth" data-v="forgot">忘記密碼</a>');
+  if (UI.auth !== 'resend') L.push('<a data-act="auth" data-v="resend">重寄驗證信</a>');
+  return '<div class="links">' + L.join('') + '</div>';
+}
 function viewLogin(){
-  var rows = Object.keys(ACCOUNTS).map(function(k){ var a = ACCOUNTS[k];
-    return '<tr class="fill" onclick="" data-act="fill" data-acct="' + k + '"><td>' + ROLE_LABEL[a.role] + '</td><td>' + esc(a.company || a.name) + '</td><td><b>' + k + '</b></td><td>' + a.pw + '</td></tr>'; }).join('');
-  return '<section class="hero"><h1>拍照上傳，<br>AI 先幫你把錯抓出來</h1><p>V.0 驗證版：驗證「模糊照片會被擋、清楚的才收件」，以及四種身分各自看到的畫面與權限。</p></section>' +
-    '<h2>選擇身分</h2><div class="card"><div class="roles">' +
-    '<button class="role" data-act="guest"><b>路人</b><span>免登入，觀摩說明與範例，每天可免費試用 ' + store.cfg.guestDaily + ' 次</span></button>' +
-    '<div class="role" style="cursor:default"><b>用戶／技師／開發者</b><span>用下方帳號登入</span></div></div></div>' +
-    '<div class="card"><h3>帳號登入</h3><label class="field"><span>帳號</span><input id="acct" autocomplete="off" autocapitalize="off"></label>' +
+  var msg = UI.authMsg ? '<div class="ok-msg">' + esc(UI.authMsg) + '</div>' : '';
+  var body;
+  if (UI.auth === 'register') body = '<div class="card"><h3>註冊新帳號</h3>' + msg +
+    fld('r_user', '帳號', 'text', '例：Food2026', '4～20 碼英文或數字，分大小寫，不可有空格') +
+    fld('r_pw', '密碼', 'password', '', '8～20 碼，需同時有大寫、小寫英文與數字，不可有空格') +
+    fld('r_pw2', '再輸入一次密碼', 'password') +
+    fld('r_mail', '信箱', 'email', '', '驗證信與忘記密碼的新密碼會寄到這裡') +
+    fld('r_contact', '聯絡人', 'text') + fld('r_phone', '電話', 'tel', '例：0912345678', '忘記密碼時要用這支電話核對身分') +
+    fld('r_co', '公司名稱', 'text') + fld('r_tax', '統一編號', 'text', '8 碼數字') +
+    '<div class="err" id="authErr"></div><button class="btn block" data-act="doRegister">送出註冊</button>' + authLinks() + '</div>';
+  else if (UI.auth === 'forgot') body = '<div class="card"><h3>忘記密碼</h3><p class="muted">輸入帳號與註冊時留的電話，核對正確後，系統會產生新密碼寄到您的註冊信箱。</p>' + msg +
+    fld('f_user', '帳號', 'text') + fld('f_phone', '註冊時留的電話', 'tel') +
+    '<div class="err" id="authErr"></div><button class="btn block" data-act="doForgot">寄送新密碼</button>' + authLinks() + '</div>';
+  else if (UI.auth === 'resend') body = '<div class="card"><h3>重寄驗證信</h3><p class="muted">註冊後沒收到驗證信、或連結過期時使用。</p>' + msg +
+    fld('v_user', '帳號', 'text') + fld('v_mail', '註冊信箱', 'email') +
+    '<div class="err" id="authErr"></div><button class="btn block" data-act="doResend">重寄驗證信</button>' + authLinks() + '</div>';
+  else body = '<div class="card"><h3>帳號登入</h3>' + msg + fld('acct', '帳號', 'text', '', '英文大小寫視為不同') +
     '<label class="field"><span>密碼</span><input id="pw" type="password"></label><div class="err" id="loginErr"></div>' +
-    '<button class="btn block" data-act="login">登入</button></div>' +
-    '<div class="card"><h3>測試帳號（點一下自動帶入）</h3><table><tr><th>身分</th><th>名稱</th><th>帳號</th><th>密碼</th></tr>' + rows + '</table>' +
-    '<p class="muted" style="margin-top:8px">客戶A、客戶B 用來驗證「不同公司互相看不到案件」。</p></div>';
+    '<button class="btn block" data-act="login">登入</button>' + authLinks() + '</div>';
+  return '<section class="hero"><h1>拍照上傳，<br>AI 先幫你把錯抓出來</h1><p>食品標籤線上初審：照片品質把關、AI 初判、食品技師終審。</p></section>' +
+    body + '<div class="card"><div class="roles"><button class="role" data-act="guest"><b>先逛逛（免登入）</b><span>觀摩說明與範例，每天可免費試用 ' + store.cfg.guestDaily + ' 次</span></button>' +
+    '<div class="role" style="cursor:default"><b>企業用戶</b><span>註冊後即可正式送審；同公司已有帳號者需管理員審核</span></div></div></div>';
+}
+function accRow(a, act){
+  return '<div class="acc"><div class="n"><b>' + esc(a.username || '（未設帳號）') + '</b>　' + esc(a.name || '') + '<small>' + esc(ROLE_LABEL[a.role] || a.role) + '｜' + esc(a.email || '') + '｜' + esc(a.phone || '') + '</small></div>' +
+    '<span class="st ' + esc(a.status) + '">' + (STATUS_LABEL[a.status] || a.status) + '</span>' +
+    (act ? '<button class="btn sm ghost" data-act="accEdit" data-id="' + esc(a.id) + '">編輯</button>' : '') + '</div>';
+}
+function accountList(editable){
+  var list = store.accounts || [];
+  var q = (UI.accQ || '').toLowerCase();
+  if (q) list = list.filter(function(a){ return [a.username, a.name, a.email, a.phone, a.company].join(' ').toLowerCase().indexOf(q) >= 0; });
+  var staff = list.filter(function(a){ return a.role !== 'user'; });
+  var groups = {};
+  list.filter(function(a){ return a.role === 'user'; }).forEach(function(a){ var k = a.company || '（未歸屬公司）'; (groups[k] = groups[k] || []).push(a); });
+  var pend = (store.accounts || []).filter(function(a){ return a.status === 'pending'; });
+  var html = (pend.length && editable ? '<div class="warnbox">有 ' + pend.length + ' 個帳號待審核：' + pend.map(function(a){ return esc(a.username) + '（' + esc(a.company || '') + '）'; }).join('、') + '。按「編輯」把狀態改成「啟用」即可通過。</div>' : '') +
+    '<label class="field"><span>搜尋（帳號、姓名、信箱、電話、公司）</span><input id="accQ" value="' + esc(UI.accQ || '') + '" autocomplete="off"></label>' +
+    '<div class="co-h">內部人員（' + staff.length + '）</div>' + (staff.length ? staff.map(function(a){ return accRow(a, editable); }).join('') : '<div class="empty">無</div>');
+  Object.keys(groups).sort().forEach(function(k){ html += '<div class="co-h">' + esc(k) + '（' + groups[k].length + '）</div>' + groups[k].map(function(a){ return accRow(a, editable); }).join(''); });
+  return html;
+}
+function viewAcc(){
+  return '<h2>會計｜帳號清單</h2><div class="card"><h3>客戶與內部帳號</h3>' + accountList(false) +
+    '<p class="muted" style="margin-top:8px">帳務、收款與入帳功能將於後續版本開放。</p></div>';
 }
 function viewGuest(){
   var left = Math.max(0, store.cfg.guestDaily - store.quota);
@@ -543,18 +609,24 @@ function viewTech(){
 }
 function viewDev(){
   var cfg = store.cfg, st = getStats();
-  var roles = ['guest','user','tech','dev'];
+  var roles = ['guest','user','tech','acc','dev'];
   var perm = '<table><tr><th>功能</th>' + roles.map(function(r){ return '<th>' + ROLE_LABEL[r] + '</th>'; }).join('') + '</tr>' +
     Object.keys(PERM).map(function(k){ return '<tr><td>' + k + '</td>' + roles.map(function(r){ return '<td class="' + (PERM[k].indexOf(r) >= 0 ? 'yes">✓' : 'no">－') + '</td>'; }).join('') + '</tr>'; }).join('') + '</table>';
   var b = UI.bench;
   var bench = b ? '<div class="res ' + (b.pass ? 'ok' : 'ng') + '"><div class="res-h"><div class="t"><b>' + (b.pass ? '✅ 會通過' : '❌ 會被擋下') + '</b><span>' + esc(b.file) + '（' + b.W + '×' + b.H + '）</span></div></div>' +
     b.list.map(function(c){ return '<div class="chk"><i>' + (c.ok ? '✅' : '❌') + '</i><span>' + esc(c.name) + '</span><em>' + esc(c.val) + '</em></div>'; }).join('') + '</div>' : '';
-  return '<h2>開發者後台</h2>' +
+  var mailWarn = store.mailOk === false ? '<div class="warnbox">⚠ 系統寄信信箱尚未設定：註冊、忘記密碼、重設密碼、新增內部帳號暫時無法使用。</div>' : '';
+  return '<h2>超管後台</h2>' + mailWarn +
+    '<div class="card"><h3>帳號管理</h3>' + accountList(true) +
+    '<details style="margin-top:12px"><summary style="cursor:pointer;font-weight:700">＋ 新增內部帳號（技師／會計／超管）</summary><div style="margin-top:10px">' +
+    fld('n_user', '帳號', 'text', '', '4～20 碼英文或數字') + fld('n_name', '姓名', 'text') + fld('n_mail', '信箱', 'email', '', '初始密碼會寄到這個信箱') + fld('n_phone', '電話', 'tel') +
+    '<label class="field"><span>身分</span><select id="n_role"><option value="tech">食品技師</option><option value="acc">會計</option><option value="dev">超管</option></select></label>' +
+    '<div class="err" id="nErr"></div><button class="btn block" data-act="accCreate">建立並寄出初始密碼</button></div></details></div>' +
     '<div class="card"><h3>統計</h3><div class="stats">' +
     '<div class="stat"><b>' + st.total + '</b><span>案件總數</span></div><div class="stat"><b>' + st.wait + '</b><span>待審</span></div>' +
     '<div class="stat"><b>' + st.pass + '</b><span>通過</span></div><div class="stat"><b>' + st.reject + '</b><span>退件</span></div>' +
     '<div class="stat"><b>' + st.trial + '</b><span>試用件</span></div><div class="stat"><b>' + st.blocked + '</b><span>今日擋下照片</span></div></div>' +
-    '<p class="muted" style="margin-top:8px">開發者看不到客戶的標籤原圖，只看統計與紀錄。</p></div>' +
+    '<p class="muted" style="margin-top:8px">超管看不到客戶的標籤原圖，只看統計與紀錄。</p></div>' +
     '<div class="card"><h3>照片品質門檻</h3><div class="grid2">' +
     '<label class="field"><span>原圖最小長邊（像素）</span><input id="c_minLong" type="number" value="' + cfg.minLong + '"></label>' +
     '<label class="field"><span>裁切後最小長邊（像素）</span><input id="c_cropMin" type="number" value="' + (cfg.cropMinLong || 1600) + '"></label>' +
@@ -575,14 +647,15 @@ function render(){
   var ae = document.activeElement;
   if (ae && $('app').contains(ae) && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA') && ae.type !== 'file') { pendingRender = true; return; }
   pendingRender = false;
-  $('me').textContent = S ? ROLE_LABEL[S.role] + (S.role === 'user' ? '｜' + S.company : S.name ? '｜' + S.name : '') : '尚未選擇身分';
-  $('switchBtn').hidden = !S;
+  $('me').textContent = S ? ROLE_LABEL[S.role] + (S.acct ? '｜' + S.acct : '') + (S.role === 'user' ? '｜' + S.company : '') : '尚未登入';
+  $('switchBtn').hidden = !S; $('switchBtn').textContent = S && S.role === 'guest' ? '離開' : '登出'; $('meBtn').hidden = !(S && S.role !== 'guest');
   var html;
   if (!S) html = viewLogin();
   else if (MODE === 'connecting') html = '<div class="empty" style="padding:40px 0">連線中…</div>';
   else if (S.role === 'guest') html = viewGuest();
   else if (S.role === 'user') html = viewUser();
   else if (S.role === 'tech') html = viewTech();
+  else if (S.role === 'acc') html = viewAcc();
   else html = viewDev();
   $('app').innerHTML = html;
 }
@@ -617,18 +690,132 @@ function verdict(id, v, btn){
   }).catch(function(e){ btn.disabled = false; $('vErr').textContent = '存檔失敗（' + ((e && e.code) || '未知') + '），請再按一次。'; });
 }
 
+/* ===== 帳號：註冊／忘記密碼／我的帳號／帳號管理 ===== */
+function setErr(id, m){ var e = $(id); if (e) e.textContent = m || ''; }
+function doRegister(btn){
+  var v = function(id){ return ($(id).value || '').trim(); };
+  var b = {action:'register', username:v('r_user'), password:$('r_pw').value, email:v('r_mail'), contact:v('r_contact'), phone:digitsOf(v('r_phone')), company:v('r_co'), tax_id:digitsOf(v('r_tax'))};
+  var e = !RE_USER.test(b.username) ? '帳號須為 4～20 碼英文或數字，不可有空格或符號' :
+    !RE_PW.test(b.password) ? '密碼須為 8～20 碼，同時包含大寫、小寫英文與數字，不可有空格' :
+    b.password !== $('r_pw2').value ? '兩次輸入的密碼不一樣' : !RE_MAIL.test(b.email) ? '信箱格式不正確' :
+    !b.contact ? '請填寫聯絡人' : (b.phone.length < 8 || b.phone.length > 12) ? '電話格式不正確' :
+    !b.company ? '請填寫公司名稱' : !taxIdOk(b.tax_id) ? '統一編號不正確，請再確認一次' : '';
+  if (e) { setErr('authErr', e); return; }
+  btn.disabled = true; setErr('authErr', '');
+  callFn(b).then(function(r){
+    if (!r.ok) { btn.disabled = false; setErr('authErr', r.msg); return; }
+    UI.auth = 'login'; UI.authMsg = r.msg; render();
+  }).catch(function(x){ btn.disabled = false; setErr('authErr', x.message); });
+}
+function authSimple(btn, body, check){
+  var e = check(body); if (e) { setErr('authErr', e); return; }
+  btn.disabled = true; setErr('authErr', '');
+  callFn(body).then(function(r){
+    if (!r.ok) { btn.disabled = false; setErr('authErr', r.msg); return; }
+    UI.auth = 'login'; UI.authMsg = r.msg; render();
+  }).catch(function(x){ btn.disabled = false; setErr('authErr', x.message); });
+}
+function openMyAcct(){
+  if (!S || S.role === 'guest') return;
+  $('sheet').innerHTML = '<button class="x" data-act="close">×</button><h3>我的帳號</h3>' +
+    '<table><tr><td>帳號</td><td><b>' + esc(S.acct) + '</b></td></tr><tr><td>身分</td><td>' + esc(ROLE_LABEL[S.role]) + '</td></tr>' +
+    '<tr><td>姓名</td><td>' + esc(S.name || '') + '</td></tr>' + (S.company ? '<tr><td>公司</td><td>' + esc(S.company) + '</td></tr>' : '') +
+    '<tr><td>信箱</td><td>' + esc(S.email || '') + '</td></tr><tr><td>電話</td><td>' + esc(S.phone || '') + '</td></tr></table>' +
+    '<p class="muted" style="margin:6px 0 12px">基本資料如需修改，請洽系統管理員。</p>' +
+    '<h3>修改密碼</h3>' + fld('m_old', '目前的密碼', 'password') + fld('m_new', '新密碼', 'password', '', '8～20 碼，需同時有大寫、小寫英文與數字，不可有空格') + fld('m_new2', '再輸入一次新密碼', 'password') +
+    '<div class="err" id="mErr"></div><button class="btn block" data-act="chgPw">修改密碼</button>';
+  $('modal').classList.remove('hidden');
+}
+function changePw(btn){
+  var o = $('m_old').value, n = $('m_new').value;
+  if (!o) { setErr('mErr', '請輸入目前的密碼'); return; }
+  if (!RE_PW.test(n)) { setErr('mErr', '新密碼須為 8～20 碼，同時包含大寫、小寫英文與數字，不可有空格'); return; }
+  if (n !== $('m_new2').value) { setErr('mErr', '兩次輸入的新密碼不一樣'); return; }
+  if (n === o) { setErr('mErr', '新密碼不能和目前的密碼一樣'); return; }
+  btn.disabled = true; setErr('mErr', '');
+  callFn({action:'login', username:S.acct, password:o}).then(function(r){
+    if (!r.ok) throw new Error(r.msg.indexOf('鎖定') >= 0 ? r.msg : '目前的密碼不正確');
+    return SB.auth.updateUser({password:n}).then(function(u){ if (u.error) throw new Error('修改失敗：' + u.error.message); });
+  }).then(function(){
+    addLog('修改密碼', S.acct); $('sheet').innerHTML = '<button class="x" data-act="close">×</button><h3>密碼已修改</h3><p class="muted">下次請用新密碼登入。</p>';
+  }).catch(function(e){ btn.disabled = false; setErr('mErr', e.message); });
+}
+function openAccEdit(id){
+  var a = (store.accounts || []).filter(function(x){ return x.id === id; })[0]; if (!a || !can('帳號管理（審核、停用、重設密碼）')) return;
+  var opt = function(map, cur){ return Object.keys(map).filter(function(k){ return k !== 'guest'; }).map(function(k){ return '<option value="' + k + '"' + (k === cur ? ' selected' : '') + '>' + map[k] + '</option>'; }).join(''); };
+  UI.selfWarned = false; var locked = a.locked_until && new Date(a.locked_until) > new Date();
+  $('sheet').innerHTML = '<button class="x" data-act="close">×</button><h3>編輯帳號｜' + esc(a.username) + '</h3>' +
+    (locked ? '<div class="warnbox">此帳號因密碼錯誤太多次暫時鎖定中，按「重設密碼」可立即解鎖。</div>' : '') +
+    '<input type="hidden" id="e_id" value="' + esc(a.id) + '">' +
+    fld('e_name', '姓名／聯絡人', 'text', '', '', a.name) + fld('e_phone', '電話', 'tel', '', '忘記密碼時用來核對身分', a.phone) + fld('e_mail', '信箱', 'email', '', '', a.email) +
+    (a.company_id ? fld('e_co', '公司名稱（同公司所有帳號一起改）', 'text', '', '', a.company) : '') +
+    '<label class="field"><span>身分</span><select id="e_role">' + opt(ROLE_LABEL, a.role) + '</select></label>' +
+    '<label class="field"><span>狀態</span><select id="e_status">' + opt(STATUS_LABEL, a.status) + '</select></label>' +
+    '<div class="err" id="eErr"></div><div class="row"><button class="btn ghost" data-act="accReset">重設密碼並寄出</button><button class="btn" data-act="accSave">儲存</button></div>' +
+    '<p class="muted" style="margin-top:8px">系統看不到任何人的密碼；重設後新密碼只會寄到此帳號的信箱。</p>';
+  $('modal').classList.remove('hidden');
+}
+function accSave(btn){
+  var b = {action:'admin_update', id:$('e_id').value, name:($('e_name').value || '').trim(), phone:digitsOf($('e_phone').value), email:($('e_mail').value || '').trim(),
+    role:$('e_role').value, status:$('e_status').value};
+  if ($('e_co')) b.company_name = ($('e_co').value || '').trim();
+  if (b.id === S.uid && (b.role !== 'dev' || b.status !== 'active') && !confirmSelf()) return;
+  btn.disabled = true; setErr('eErr', '');
+  callFn(b, true).then(function(r){
+    if (!r.ok) { btn.disabled = false; setErr('eErr', r.msg); return; }
+    closeModal(); loadAll();
+  }).catch(function(e){ btn.disabled = false; setErr('eErr', e.message); });
+}
+function confirmSelf(){ setErr('eErr', '這是您自己的帳號：取消超管或停用後會立刻失去後台權限。確定要改，請再按一次「儲存」。'); if (UI.selfWarned) { UI.selfWarned = false; return true; } UI.selfWarned = true; return false; }
+function accReset(btn){
+  btn.disabled = true; setErr('eErr', '');
+  callFn({action:'admin_reset', id:$('e_id').value}, true).then(function(r){
+    btn.disabled = false; setErr('eErr', r.ok ? '' : r.msg);
+    if (r.ok) { var e = $('eErr'); e.className = 'ok-msg'; e.textContent = '已重設，新密碼已寄到此帳號的信箱。'; loadAll(); }
+  }).catch(function(e){ btn.disabled = false; setErr('eErr', e.message); });
+}
+function accCreate(btn){
+  var b = {action:'admin_create', username:($('n_user').value || '').trim(), name:($('n_name').value || '').trim(), email:($('n_mail').value || '').trim(), phone:digitsOf($('n_phone').value), role:$('n_role').value};
+  if (!RE_USER.test(b.username)) { setErr('nErr', '帳號須為 4～20 碼英文或數字'); return; }
+  if (!RE_MAIL.test(b.email)) { setErr('nErr', '信箱格式不正確'); return; }
+  btn.disabled = true; setErr('nErr', '');
+  callFn(b, true).then(function(r){
+    btn.disabled = false;
+    if (!r.ok) { setErr('nErr', r.msg); return; }
+    loadAll(); setErr('nErr', ''); alertOk('nErr', '已建立，初始密碼已寄出。');
+  }).catch(function(e){ btn.disabled = false; setErr('nErr', e.message); });
+}
+function alertOk(id, m){ var e = $(id); if (e) { e.className = 'ok-msg'; e.textContent = m; } }
+document.addEventListener('keydown', function(ev){
+  if (ev.key === 'Enter' && ev.target && (ev.target.id === 'pw' || ev.target.id === 'acct')) { var b = document.querySelector('[data-act="login"]'); if (b && !b.disabled) { ev.preventDefault(); ev.target.blur(); b.click(); } }
+});
+document.addEventListener('change', function(ev){
+  if (ev.target && ev.target.id === 'accQ') { UI.accQ = ev.target.value.trim(); ev.target.blur(); render(); }
+});
+
 /* ===== 事件 ===== */
 document.addEventListener('click', function(ev){
   var t = ev.target.closest('[data-act]'); if (!t) { if (ev.target === $('modal')) closeModal(); return; }
   var a = t.getAttribute('data-act');
   if (a === 'guest') doLogout().then(function(){ setSession({role:'guest'}); });
-  else if (a === 'fill') { var k = t.getAttribute('data-acct'); $('acct').value = k; $('pw').value = ACCOUNTS[k].pw; $('loginErr').textContent = ''; }
+  else if (a === 'auth') { UI.auth = t.getAttribute('data-v'); UI.authMsg = ''; render(); }
   else if (a === 'login') {
-    var k2 = ($('acct').value || '').trim().toLowerCase(), p = $('pw').value;
+    var k2 = ($('acct').value || '').trim(), p = $('pw').value;
+    if (!k2 || !p) { $('loginErr').textContent = '請輸入帳號和密碼'; return; }
+    if (/\s/.test(k2) || /\s/.test(p)) { $('loginErr').textContent = '帳號和密碼都不能有空格'; return; }
     t.disabled = true; $('loginErr').textContent = '';
-    doLogin(k2, p).then(function(sess){ setSession(sess); addLog('登入', sess.company || sess.name); })
+    doLogin(k2, p).then(function(sess){ if (document.activeElement) document.activeElement.blur(); setSession(sess); })
       .catch(function(e){ t.disabled = false; $('loginErr').textContent = (e && e.message) || '登入失敗'; });
   }
+  else if (a === 'doRegister') doRegister(t);
+  else if (a === 'doForgot') authSimple(t, {action:'forgot', username:($('f_user').value || '').trim(), phone:digitsOf($('f_phone').value)}, function(b){ return !b.username || !b.phone ? '請輸入帳號和電話' : ''; });
+  else if (a === 'doResend') authSimple(t, {action:'resend', username:($('v_user').value || '').trim(), email:($('v_mail').value || '').trim()}, function(b){ return !b.username || !b.email ? '請輸入帳號和信箱' : ''; });
+  else if (a === 'myacct') openMyAcct();
+  else if (a === 'chgPw') changePw(t);
+  else if (a === 'accEdit') openAccEdit(t.getAttribute('data-id'));
+  else if (a === 'accSave') accSave(t);
+  else if (a === 'accReset') accReset(t);
+  else if (a === 'accCreate') accCreate(t);
   else if (a === 'logout') { closeModal(); doLogout().then(function(){ setSession(null); }); }
   else if (a === 'tab') { UI.tab = t.getAttribute('data-tab'); render(); }
   else if (a === 'open') openCase(t.getAttribute('data-id'));
@@ -1093,6 +1280,9 @@ if (SB_URL) (function(){
     if (!SB) return;
     var jobs = [SB.from('config').select('*').eq('id', 1).maybeSingle().then(function(r){ if (r.data) store.cfg = cfgFrom(r.data); })];
     if (S && S.role !== 'dev') jobs.push(SB.from('cases').select('*').order('ts', {ascending:false}).limit(300).then(function(r){ if (!r.error) store.cases = (r.data || []).map(fromRow); }));
+    if (S && (S.role === 'dev' || S.role === 'acc'))
+      jobs.push(SB.from('profiles').select('id,username,name,role,status,email,phone,company,company_id,locked_until,created_at').order('created_at', {ascending:true}).then(function(r){ if (!r.error) store.accounts = r.data || []; }));
+    if (S && S.role === 'dev' && store.mailOk == null) jobs.push(callFn({action:'mail_status'}).then(function(r){ store.mailOk = !!(r && r.smtp); }, function(){}));
     if (S && S.role === 'dev') {
       jobs.push(SB.rpc('dev_stats').then(function(r){ store.stats = r.data || null; }));
       jobs.push(SB.from('logs').select('*').order('id', {ascending:false}).limit(80).then(function(r){ store.logs = (r.data || []).map(function(l){ l.ts = Number(l.ts); return l; }); }));
@@ -1106,7 +1296,19 @@ if (SB_URL) (function(){
     sc.onload = function(){
       SB = window.supabase.createClient(SB_URL, SB_KEY, {global:{headers:{'x-device-id':DEVICE}}, auth:{storageKey:'lv0_auth', persistSession:true, autoRefreshToken:true}});
       MODE = 'supa'; setBanner('已連線正式資料庫，權限由資料庫把關');
-      SB.auth.getSession().then(function(r){
+      var vt = (location.search.match(/[?&]vt=([^&]+)/) || [])[1];
+      var verify = !vt ? Promise.resolve() : (function(){
+        var th = decodeURIComponent(vt), types = ['email', 'signup', 'magiclink'];
+        var tryOne = function(i){ return i >= types.length ? Promise.resolve(false) :
+          SB.auth.verifyOtp({token_hash:th, type:types[i]}).then(function(r){ return r.error ? tryOne(i + 1) : true; }, function(){ return tryOne(i + 1); }); };
+        return tryOne(0).then(function(ok){
+          try { history.replaceState(null, '', location.pathname); } catch(e){}
+          S = null; ssSet('lv0_session', null); UI.auth = 'login';
+          UI.authMsg = ok ? '信箱驗證完成！請用您的帳號登入（同公司已有帳號者，需等管理員審核通過）。' : '驗證連結無效或已過期，請按下方「重寄驗證信」。';
+          return SB.auth.signOut().then(function(){}, function(){});
+        });
+      })();
+      verify.then(function(){ return SB.auth.getSession(); }).then(function(r){
         var has = r && r.data && r.data.session;
         if (S && S.role !== 'guest' && !has) { S = null; ssSet('lv0_session', null); }
         if (S && S.role === 'guest' && has) SB.auth.signOut();
@@ -1153,14 +1355,26 @@ if (SB_URL) (function(){
     return SB.storage.from('labels').createSignedUrl(c.imgPath, 600).then(function(r){ return r.data ? r.data.signedUrl : c.thumb; });
   };
   getStats = function(){ var t = store.stats || {}; return {total:t.total || 0, wait:t.wait || 0, pass:t.pass || 0, reject:t.reject || 0, trial:t.trial || 0, blocked:t.blocked || 0}; };
+  callFn = function(body, auth){
+    var go = function(tok){
+      return fetch(SB_URL + '/functions/v1/account', {method:'POST', headers:{'Content-Type':'application/json', apikey:SB_KEY, Authorization:'Bearer ' + (tok || SB_KEY)}, body:JSON.stringify(body)})
+        .then(function(r){ return r.json(); }, function(){ throw new Error('連線失敗，請檢查網路後再試'); });
+    };
+    if (!auth) return go(null);
+    return SB.auth.getSession().then(function(r){ return go(r.data && r.data.session ? r.data.session.access_token : null); });
+  };
   doLogin = function(k, p){
     if (!SB) return Promise.reject(new Error('連線中，請稍候再試'));
-    return SB.auth.signInWithPassword({email:k + '@label-v0.test', password:p}).then(function(r){
-      if (r.error) throw new Error('帳號或密碼不正確');
+    return callFn({action:'login', username:k, password:p}).then(function(r){
+      if (!r.ok) { if (r.unverified) { UI.auth = 'login'; } throw new Error(r.msg); }
+      return SB.auth.setSession({access_token:r.access_token, refresh_token:r.refresh_token});
+    }).then(function(r){
+      if (r.error || !r.data || !r.data.user) throw new Error('登入失敗，請再試一次');
       var uid = r.data.user.id;
       return SB.from('profiles').select('*').eq('id', uid).single().then(function(q){
         if (q.error || !q.data) throw new Error('找不到此帳號的身分設定');
-        return {role:q.data.role, acct:k, uid:uid, name:q.data.name, company:q.data.company || '', code:q.data.company_code || ''};
+        var d = q.data;
+        return {role:d.role, acct:d.username, uid:uid, name:d.name, company:d.company || '', code:d.company_code || '', email:d.email || '', phone:d.phone || ''};
       });
     });
   };
